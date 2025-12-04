@@ -375,7 +375,7 @@ HTML_TEMPLATE = """
                     
                     <div class="input-group">
                         <label class="input-label" for="prompt">🎨 Prompt (Hareket Türü)</label>
-                        <input type="text" id="prompt" name="prompt" placeholder="Örn: dancing, walking..." value="" required>
+                        <input type="text" id="prompt" name="prompt" placeholder="Örn: kissing, dancing, walking..." value="kissing" required>
                     </div>
                     
                     <button type="submit" class="btn" id="submitBtn">🚀 Video Oluştur</button>
@@ -555,6 +555,27 @@ def upload():
     file_content = file.read()
     file_name = file.filename
     
+    def extract_json_objects_with_positions(s):
+        """
+        Basit bir köşeli parantez (brace) dengeleyici ile string içindeki top-level JSON nesnelerini
+        (start_index, end_index, json_string) biçiminde döndürür.
+        Böylece aynı buffer içinde birden fazla JSON objesi veya kısmi parçalar işlenebilir.
+        """
+        objs = []
+        stack = 0
+        start = None
+        for i, ch in enumerate(s):
+            if ch == '{':
+                if stack == 0:
+                    start = i
+                stack += 1
+            elif ch == '}':
+                stack -= 1
+                if stack == 0 and start is not None:
+                    objs.append((start, i, s[start:i+1]))
+                    start = None
+        return objs
+
     def generate():
         try:
             # Step 1: Upload file
@@ -678,10 +699,13 @@ def upload():
             # Step 5: Create conversation and wait for video
             yield stream_log('=== ADIM 5/6: Video oluşturuluyor (bu biraz sürebilir...) ===')
             
+            # Güvenli mesaj oluşturma: prompt içinde özel karakterler olsa bile JSON güvenli olsun
+            safe_message = f"{media_url} {prompt} --mode=custom"
+            
             conversation_data = {
                 "temporary": True,
                 "modelName": "grok-3",
-                "message": f"{media_url} {prompt} --mode=custom",
+                "message": safe_message,
                 "fileAttachments": [asset_id],
                 "toolOverrides": {"videoGen": True},
                 "responseMetadata": {
@@ -700,6 +724,7 @@ def upload():
             headers5 = base_headers.copy()
             headers5['referer'] = f'https://grok.com/imagine/post/{asset_id}'
             
+            # stream=True ile uzun süren cevap için istek gönder
             response = requests.post(
                 'https://grok.com/rest/app-chat/conversations/new',
                 headers=headers5,
@@ -713,32 +738,79 @@ def upload():
             
             if response.status_code == 200:
                 video_url = None
-                for line in response.iter_lines():
-                    if line:
-                        try:
-                            data = json.loads(line.decode('utf-8'))
-                            if 'result' in data and 'response' in data['result']:
-                                streaming_response = data['result']['response'].get('streamingVideoGenerationResponse', {})
-                                progress = streaming_response.get('progress', 0)
-                                
-                                if progress > 0:
-                                    yield stream_log(f'Video oluşturma: %{progress}')
-                                
-                                if progress == 100:
-                                    video_url = streaming_response.get('videoUrl')
-                                    if video_url:
-                                        full_video_url = f"https://assets.grok.com/{video_url}"
-                                        yield stream_log(f'✓ Video URL: {full_video_url}')
-                                        yield stream_progress(90)
-                                        break
-                        except Exception as e:
-                            yield stream_log(f'Parse error: {str(e)}')
+                full_video_url = None
+                buffer = ""  # gelen parçaları tutmak için buffer
                 
-                if not video_url:
+                # response.iter_lines() ile gelen parçaları güvenli şekilde işle
+                for chunk in response.iter_lines():
+                    if not chunk:
+                        continue
+                    try:
+                        text = chunk.decode('utf-8', errors='replace')
+                    except Exception:
+                        # decode edilemezse ham str olarak al
+                        text = str(chunk)
+                    
+                    # Eğer "data: " prefix'i varsa kaldıralım (bazı streamler SSE formatında olabilir)
+                    cleaned = text
+                    if cleaned.startswith('data: '):
+                        cleaned = cleaned[6:]
+                    
+                    # buffer'a ekle
+                    buffer += cleaned
+                    
+                    # buffer içindeki tamamlanmış JSON objelerini tespit et
+                    found = extract_json_objects_with_positions(buffer)
+                    if not found:
+                        # henüz tamamlanmış bir JSON objesi yok; daha fazla veri bekle
+                        continue
+                    
+                    # Her bulunan JSON objesini sırayla işle
+                    for start_idx, end_idx, obj_str in found:
+                        try:
+                            data = json.loads(obj_str)
+                        except Exception as e:
+                            # Eğer parse edilemezse, bunu log'la bildir ama akışı bozma
+                            yield stream_log(f'Parse error inner: {str(e)} - snippet: {obj_str[:200]}')
+                            continue
+                        
+                        # Orijinal kodun yaptığı gibi streaming içeriği kontrol et
+                        if 'result' in data and 'response' in data['result']:
+                            streaming_response = data['result']['response'].get('streamingVideoGenerationResponse', {})
+                            progress = streaming_response.get('progress', 0)
+                            
+                            if progress > 0:
+                                yield stream_log(f'Video oluşturma: %{progress}')
+                            
+                            if progress == 100:
+                                video_url = streaming_response.get('videoUrl')
+                                if video_url:
+                                    full_video_url = f"https://assets.grok.com/{video_url}"
+                                    yield stream_log(f'✓ Video URL: {full_video_url}')
+                                    yield stream_progress(90)
+                                    # break değil; diğer tamamlanmış parçaları da işle
+                        else:
+                            # Bazı satırlar yalnızca event/log içerebilir — bunu debug olarak göster
+                            # (çok fazla log olmasını istemezsen burayı azaltabilirsin)
+                            # yield stream_log(f'Unhandled streaming obj: {list(data.keys())}')
+                            pass
+                    
+                    # processed_end: son işlenen 'end_idx' i al ve buffer'ı törpüle
+                    last_end = found[-1][1]
+                    # buffer'ı son işlenen karakterin sonrasına kadar kırp
+                    buffer = buffer[last_end+1:]
+                    
+                    # Eğer video bulunduysa döngüden çıkabiliriz
+                    if full_video_url:
+                        break
+                
+                if not full_video_url:
                     yield stream_error('Video URL bulunamadı')
                     return
             else:
-                yield stream_error(f'Conversation oluşturulamadı: {response.status_code} - {response.text[:500]}')
+                # response.text büyük olabileceği için sınırlı şekilde gösteriyoruz
+                snippet = response.text[:500] if hasattr(response, 'text') else ''
+                yield stream_error(f'Conversation oluşturulamadı: {response.status_code} - {snippet}')
                 return
             
             # Step 6: Like post
@@ -766,6 +838,7 @@ def upload():
             yield stream_video(full_video_url)
             
         except Exception as e:
+            # Genel hata yakalama: hem kullanıcıya SSE üzerinden hata gönder, hem de log ekle
             yield stream_error(str(e))
             yield stream_log(f'✗ HATA: {str(e)}')
     
