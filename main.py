@@ -618,7 +618,7 @@ def upload():
             time.sleep(0.5)
             
             if response.status_code != 200:
-                yield stream_error(f"Upload failed: {response.status_code} - {response.content}")
+                yield stream_error(f"Upload failed: {response.status_code} - {response.text}")
                 return
             
             result = response.json()
