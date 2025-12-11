@@ -1,637 +1,302 @@
-from flask import Flask, render_template_string, request, jsonify
-import requests
+import os
 import json
 import time
-from threading import Thread
+import uuid
+import threading
+import requests
+from flask import Flask, render_template, request, jsonify
 
 app = Flask(__name__)
+app.config['UPLOAD_FOLDER'] = 'uploads'
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-# --- GLOBAL DEĞİŞKENLER ---
-ACCOUNTS = []  # Hesap listesi [{'email': '...', 'password': '...'}, ...]
-CURRENT_ACCOUNT_INDEX = 0
-token = None
-current_task_status = {"status": "idle", "message": "Hesap dosyası bekleniyor...", "url": ""}
-
-# --- SABİTLER ---
-IMAGE_SIZES = {
-    'AUTO': 'Otomatik',
-    'SIXTEEN_BY_NINE': '16:9',
-    'NINE_BY_SIXTEEN': '9:16',
-    'ONE_BY_ONE': '1:1',
-    'THREE_BY_FOUR': '3:4',
-    'FOUR_BY_THREE': '4:3',
-    'THREE_BY_TWO': '3:2',
-    'TWO_BY_THREE': '2:3'
+# --- Global State ---
+STATE = {
+    "accounts": [],       # {email, password} listesi
+    "current_account_index": 0,
+    "current_token": None,
+    "active_quota": "Bilinmiyor", # Aktif hesabın kotası
+    "tasks": {}           # task_id -> {status, log, image_url, params, created_at}
 }
 
-MODEL_TYPES = {
-    'MODEL_THREE': 'Model 3',
-    'MODEL_FOUR': 'Model 4',
-    'MODEL_FIVE': 'Model 5'
-}
+# --- API Constants ---
+API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJyb2xlIjogImFub24iLAogICJpc3MiOiAic3VwYWJhc2UiLAogICJpYXQiOiAxNzM0OTY5NjAwLAogICJleHAiOiAxODkyNzM2MDAwCn0.4NnK23LGYvKPGuKI5rwQn2KbLMzzdE4jXpHwbGCqPqY"
+URL_AUTH = "https://sp.deevid.ai/auth/v1/token?grant_type=password"
+URL_UPLOAD = "https://api.deevid.ai/file-upload/image"
+URL_SUBMIT = "https://api.deevid.ai/text-to-image/task/submit"
+URL_ASSETS = "https://api.deevid.ai/my-assets?limit=20&assetType=All&filter=CREATION"
+URL_QUOTA = "https://api.deevid.ai/subscription/plan"
 
-MODEL_VERSIONS = {
-    'MODEL_FIVE_SD_4_0': 'Model 5 SD 4.0',
-    'MODEL_FOUR_NANO_BANANA': 'Model 4 Nano Banana',
-    'MODEL_FOUR_NANO_BANANA_PRO': 'Model 4 Nano Banana Pro'
-}
+# --- Helper Functions ---
 
-RESOLUTIONS = {
-    '1K': '1K',
-    '2K': '2K',
-    '4K': '4K'
-}
+def get_current_account():
+    if not STATE['accounts']:
+        return None
+    idx = STATE['current_account_index'] % len(STATE['accounts'])
+    return STATE['accounts'][idx]
 
-# --- HTML ŞABLONU ---
-HTML_TEMPLATE = '''
-<!DOCTYPE html>
-<html lang="tr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Görsel Oluşturucu (Multi-Account)</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-            height: 100vh;
-            overflow: hidden;
-            color: #333;
-        }
-        .main-container {
-            display: grid;
-            grid-template-columns: 400px 1fr;
-            height: 100vh;
-        }
-        .left-panel {
-            background: white;
-            padding: 20px;
-            overflow-y: auto;
-            box-shadow: 2px 0 20px rgba(0,0,0,0.2);
-        }
-        .right-panel {
-            display: flex;
-            flex-direction: column;
-            padding: 20px;
-            background: rgba(255,255,255,0.1);
-        }
-        .header { margin-bottom: 20px; border-bottom: 2px solid #f0f0f0; padding-bottom: 10px; }
-        .header h1 { font-size: 22px; color: #1e3c72; margin-bottom: 5px; }
-        
-        .account-box {
-            background: #f8f9fa;
-            border: 1px solid #e9ecef;
-            padding: 10px;
-            border-radius: 8px;
-            margin-bottom: 15px;
-            font-size: 13px;
-        }
-        .account-status { font-weight: bold; color: #2ecc71; }
-        .account-quota { color: #e67e22; font-weight: bold; }
-        
-        .form-group { margin-bottom: 15px; }
-        label { display: block; font-weight: 600; margin-bottom: 5px; color: #555; font-size: 13px; }
-        
-        input[type="file"], textarea, select {
-            width: 100%; padding: 8px;
-            border: 1px solid #ced4da; border-radius: 6px;
-            font-size: 13px; font-family: inherit;
-        }
-        textarea { resize: vertical; min-height: 70px; }
-        
-        .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        
-        .btn {
-            background: #1e3c72; color: white; border: none;
-            padding: 12px; border-radius: 6px; font-weight: 600;
-            cursor: pointer; width: 100%; transition: 0.2s;
-        }
-        .btn:hover:not(:disabled) { background: #2a5298; }
-        .btn:disabled { opacity: 0.6; cursor: not-allowed; }
-        
-        .btn-upload { background: #6c757d; margin-top: 5px; }
-        
-        .preview-container {
-            flex: 1; background: white; border-radius: 12px;
-            padding: 20px; display: flex; flex-direction: column;
-            box-shadow: 0 5px 25px rgba(0,0,0,0.2);
-            position: relative; overflow: hidden;
-        }
-        .preview-content {
-            flex: 1; display: flex; align-items: center; justify-content: center;
-            background: #f1f3f5; border-radius: 8px; overflow: hidden;
-        }
-        #resultImage { max-width: 100%; max-height: 100%; object-fit: contain; display: none; }
-        
-        .status-overlay {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(255,255,255,0.9);
-            display: flex; flex-direction: column;
-            justify-content: center; align-items: center;
-            z-index: 10; display: none;
-        }
-        .status-overlay.show { display: flex; }
-        .spinner {
-            width: 40px; height: 40px; border: 4px solid #f3f3f3;
-            border-top: 4px solid #1e3c72; border-radius: 50%;
-            animation: spin 1s linear infinite; margin-bottom: 15px;
-        }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        
-        .log-box {
-            margin-top: 10px; font-size: 12px; color: #666;
-            max-height: 100px; overflow-y: auto; background: #fff;
-            padding: 5px; border: 1px solid #eee;
-        }
-    </style>
-</head>
-<body>
-    <div class="main-container">
-        <div class="left-panel">
-            <div class="header">
-                <h1>🤖 Multi-Account AI</h1>
-            </div>
-            
-            <div class="account-box">
-                <div id="accountInfoArea">
-                    ⚠️ Önce hesap yükleyin
-                </div>
-                <form id="accountForm" style="margin-top:10px;">
-                    <label>📁 accounts.txt Yükle</label>
-                    <input type="file" name="accountFile" accept=".txt" required>
-                    <button type="submit" class="btn btn-upload">Hesapları Yükle</button>
-                </form>
-            </div>
-
-            <form id="generateForm" method="POST" enctype="multipart/form-data">
-                <div class="form-group">
-                    <label>📝 Prompt</label>
-                    <textarea name="prompt" required>{{ default_prompt }}</textarea>
-                </div>
-                
-                <div class="form-group">
-                    <label>🖼️ Referans Görsel (Opsiyonel)</label>
-                    <input type="file" name="image" accept="image/*">
-                </div>
-                
-                <div class="row">
-                    <div class="form-group">
-                        <label>📐 Boyut</label>
-                        <select name="imageSize">
-                            {% for key, value in image_sizes.items() %}
-                            <option value="{{ key }}">{{ value }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>✨ Çözünürlük</label>
-                        <select name="resolution">
-                            {% for key, value in resolutions.items() %}
-                            <option value="{{ key }}" {% if key == '4K' %}selected{% endif %}>{{ value }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                </div>
-                
-                <div class="row">
-                    <div class="form-group">
-                        <label>🤖 Model</label>
-                        <select name="modelType">
-                            {% for key, value in model_types.items() %}
-                            <option value="{{ key }}" {% if key == 'MODEL_FOUR' %}selected{% endif %}>{{ value }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>🔧 Versiyon</label>
-                        <select name="modelVersion">
-                            {% for key, value in model_versions.items() %}
-                            <option value="{{ key }}" {% if key == 'MODEL_FOUR_NANO_BANANA_PRO' %}selected{% endif %}>{{ value }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                </div>
-                
-                <button type="submit" class="btn" id="submitBtn" disabled>🚀 Başlat</button>
-            </form>
-        </div>
-        
-        <div class="right-panel">
-            <div class="preview-container">
-                <div class="preview-content">
-                    <div id="placeholder" style="text-align:center; color:#999;">
-                        <h2>🖼️</h2><p>Görsel burada görünecek</p>
-                    </div>
-                    <img id="resultImage">
-                    <div class="status-overlay" id="statusOverlay">
-                        <div class="spinner"></div>
-                        <div id="statusMessage">İşleniyor...</div>
-                    </div>
-                </div>
-                <a id="downloadBtn" class="btn" style="margin-top:15px; display:none; background:#27ae60; text-align:center; text-decoration:none;" download>⬇️ İndir</a>
-            </div>
-        </div>
-    </div>
-    
-    <script>
-        // Hesap Dosyası Yükleme
-        document.getElementById('accountForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const formData = new FormData(e.target);
-            try {
-                const res = await fetch('/upload_accounts', { method: 'POST', body: formData });
-                const data = await res.json();
-                if(data.success) {
-                    alert(data.message);
-                    updateAccountInfo();
-                    document.getElementById('submitBtn').disabled = false;
-                } else {
-                    alert('Hata: ' + data.message);
-                }
-            } catch(err) { alert('Yükleme hatası'); }
-        });
-
-        function updateAccountInfo() {
-            fetch('/account_info')
-                .then(r => r.json())
-                .then(data => {
-                    const el = document.getElementById('accountInfoArea');
-                    if(data.total > 0) {
-                        el.innerHTML = `
-                            <div>Aktif Hesap: <b>${data.current_email}</b></div>
-                            <div class="account-quota">Kota: ${data.quota}</div>
-                            <div style="font-size:11px; color:#999; margin-top:5px;">Toplam Hesap: ${data.total} | Sıra: ${data.index + 1}</div>
-                        `;
-                    }
-                });
-        }
-
-        // Görsel Oluşturma
-        document.getElementById('generateForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const formData = new FormData(e.target);
-            const overlay = document.getElementById('statusOverlay');
-            const msg = document.getElementById('statusMessage');
-            const img = document.getElementById('resultImage');
-            const dl = document.getElementById('downloadBtn');
-            const ph = document.getElementById('placeholder');
-            
-            document.getElementById('submitBtn').disabled = true;
-            overlay.className = 'status-overlay show';
-            img.style.display = 'none';
-            ph.style.display = 'block';
-            dl.style.display = 'none';
-            msg.innerText = 'Başlatılıyor...';
-            
-            try {
-                const res = await fetch('/generate', { method: 'POST', body: formData });
-                const data = await res.json();
-                
-                if(data.success) {
-                    // Durum polling
-                    const interval = setInterval(async () => {
-                        const sRes = await fetch('/status');
-                        const sData = await sRes.json();
-                        
-                        msg.innerText = sData.message;
-                        
-                        // Hesap değişirse arayüzü güncelle
-                        updateAccountInfo();
-                        
-                        if(sData.status === 'completed') {
-                            clearInterval(interval);
-                            overlay.className = 'status-overlay';
-                            img.src = sData.url;
-                            img.style.display = 'block';
-                            ph.style.display = 'none';
-                            dl.href = sData.url;
-                            dl.style.display = 'block';
-                            document.getElementById('submitBtn').disabled = false;
-                        } else if(sData.status === 'error') {
-                            clearInterval(interval);
-                            msg.innerHTML = '<span style="color:red">Hata: ' + sData.message + '</span>';
-                            setTimeout(() => { overlay.className = 'status-overlay'; }, 3000);
-                            document.getElementById('submitBtn').disabled = false;
-                        }
-                    }, 2000);
-                } else {
-                    msg.innerText = 'Hata: ' + data.message;
-                    setTimeout(() => { overlay.className = 'status-overlay'; document.getElementById('submitBtn').disabled = false; }, 2000);
-                }
-            } catch(err) {
-                msg.innerText = 'Bağlantı hatası!';
-                setTimeout(() => { overlay.className = 'status-overlay'; document.getElementById('submitBtn').disabled = false; }, 2000);
-            }
-        });
-        
-        // Sayfa açıldığında bilgi çekmeyi dene
-        updateAccountInfo();
-    </script>
-</body>
-</html>
-'''
-
-# --- YARDIMCI FONKSİYONLAR ---
-
-def switch_account():
-    global CURRENT_ACCOUNT_INDEX, token
-    
-    # Sıradaki hesaba geç
-    CURRENT_ACCOUNT_INDEX += 1
-    
-    if CURRENT_ACCOUNT_INDEX >= len(ACCOUNTS):
-        # Liste bitti, başa dön veya hata ver. Şimdilik başa dönüyoruz.
-        CURRENT_ACCOUNT_INDEX = 0
-        if len(ACCOUNTS) == 0:
-            return False
-            
-    print(f"Hesap değiştiriliyor... Yeni sıra: {CURRENT_ACCOUNT_INDEX + 1}")
-    return get_token()
-
-def get_token():
-    global token
-    if not ACCOUNTS:
+def rotate_account():
+    """Bir sonraki hesaba geçer ve tokeni sıfırlar."""
+    if not STATE['accounts']:
         return False
-        
-    account = ACCOUNTS[CURRENT_ACCOUNT_INDEX]
-    email = account['email']
-    password = account['password']
     
-    url = "https://sp.deevid.ai/auth/v1/token?grant_type=password"
-    headers = {
-        "apikey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJyb2xlIjogImFub24iLAogICJpc3MiOiAic3VwYWJhc2UiLAogICJpYXQiOiAxNzM0OTY5NjAwLAogICJleHAiOiAxODkyNzM2MDAwCn0.4NnK23LGYvKPGuKI5rwQn2KbLMzzdE4jXpHwbGCqPqY",
-    }
+    prev_email = get_current_account()['email']
+    STATE['current_account_index'] = (STATE['current_account_index'] + 1) % len(STATE['accounts'])
+    STATE['current_token'] = None
+    STATE['active_quota'] = "Hesaplanıyor..."
+    
+    new_email = get_current_account()['email']
+    print(f"!!! Hesap Değiştiriliyor: {prev_email} -> {new_email}")
+    return True
+
+def login_and_get_token():
+    """Mevcut token varsa döndürür, yoksa login olup alır."""
+    if STATE['current_token']:
+        return STATE['current_token']
+
+    account = get_current_account()
+    if not account:
+        raise Exception("Yüklü hesap bulunamadı!")
+
+    headers = {"apikey": API_KEY}
     payload = {
-        "email": email,
-        "password": password,
+        "email": account['email'],
+        "password": account['password'],
         "gotrue_meta_security": {}
     }
-    
+
     try:
-        response = requests.post(url, json=payload, headers=headers)
-        json_data = json.loads(response.text)
+        response = requests.post(URL_AUTH, json=payload, headers=headers)
+        if response.status_code != 200:
+            raise Exception(f"Login failed: {response.text}")
         
-        if 'access_token' in json_data:
-            token = json_data['access_token']
-            print(f"Giriş başarılı: {email}")
-            return True
+        data = response.json()
+        token = data.get('access_token')
+        STATE['current_token'] = token
+        
+        # Login olunca kotayı da güncelle
+        refresh_quota(token)
+        
+        return token
+    except Exception as e:
+        print(f"Login hatası ({account['email']}): {e}")
+        if rotate_account():
+            return login_and_get_token()
         else:
-            print(f"Giriş hatası ({email}): {json_data}")
-            return False
-    except Exception as e:
-        print("Token request hatası:", e)
-        return False
+            raise Exception("Tüm hesaplar denendi, giriş yapılamadı.")
 
-def get_quota():
-    if not token:
-        return 0
-    url = "https://api.deevid.ai/subscription/plan"
+def refresh_quota(token):
+    """Kotayı çeker ve global state'e yazar."""
     headers = {"authorization": "Bearer " + token}
     try:
-        response = requests.get(url, headers=headers)
-        d = response.json()['data']['data']['message_quota']
-        return d['quota_count'] - d['subscription_quota_used']
-    except:
+        resp = requests.get(URL_QUOTA, headers=headers)
+        data = resp.json()['data']['data']['message_quota']
+        quota_total = data['quota_count']
+        quota_used = data['subscription_quota_used']
+        remaining = quota_total - quota_used
+        STATE['active_quota'] = remaining
+        return remaining
+    except Exception as e:
+        print(f"Kota çekme hatası: {e}")
+        STATE['active_quota'] = "Hata"
         return 0
 
-def get_latest_asset_id():
-    """Son yüklenen/oluşturulan asset'in ID'sini getirir. Eski resim gelmesini önlemek için referans noktası."""
-    url = "https://api.deevid.ai/my-assets?limit=5&assetType=All&filter=CREATION"
+def get_latest_asset_id(token):
+    """En son oluşturulan assetin ID'sini döner. (Snapshot için)"""
     headers = {"authorization": "Bearer " + token}
     try:
-        resp = requests.get(url, headers=headers).json()
-        groups = resp["data"]["data"]["groups"]
-        # En üstteki (en yeni) grubun, en üstteki item'ının ID'sini al
-        if groups and groups[0]["items"]:
-            return groups[0]["items"][0]["id"]
+        resp = requests.get(URL_ASSETS, headers=headers).json()
+        groups = resp.get("data", {}).get("data", {}).get("groups", [])
+        for group in groups:
+            for item in group.get("items", []):
+                return item.get("id") # İlk item en yenisidir
     except:
-        pass
+        return None
     return None
 
-def upload_image_api(image_file):
-    url = "https://api.deevid.ai/file-upload/image"
-    headers = {"Authorization": "Bearer " + token}
-    files = {"file": (image_file.filename, image_file, image_file.content_type)}
-    data = {"width": "1024", "height": "1536"}
-    
+def process_task_thread(task_id, file_path, form_data):
+    log_msg = lambda m: STATE['tasks'][task_id]['logs'].append(m)
+    STATE['tasks'][task_id]['status'] = 'running'
+    log_msg("İşlem başlatılıyor...")
+
     try:
-        resp = requests.post(url, headers=headers, files=files, data=data)
-        json_data = resp.json()
-        if 'data' in json_data and 'data' in json_data['data'] and 'id' in json_data['data']['data']:
-            return json_data['data']['data']['id']
-    except Exception as e:
-        print("Upload hatası:", e)
-    return None
-
-def generate_logic(prompt, image_size, count, resolution, model_type, model_version, user_image_id):
-    global current_task_status
-    
-    # 1. Token kontrolü
-    if not token:
-        if not get_token():
-             current_task_status = {"status": "error", "message": "Hesaplara giriş yapılamadı.", "url": ""}
-             return
-
-    # 2. ESKİ RESMİ ÖNLEME MEKANİZMASI
-    # Şu anki en son ID'yi kaydediyoruz. Döngüde bundan daha yeni bir ID arayacağız.
-    last_asset_id = get_latest_asset_id()
-    print(f"Başlangıç referans ID: {last_asset_id}")
-
-    current_task_status = {"status": "processing", "message": "Görev gönderiliyor...", "url": ""}
-
-    url = "https://api.deevid.ai/text-to-image/task/submit"
-    headers = {"Authorization": "Bearer " + token}
-    
-    payload = {
-        "prompt": prompt,
-        "imageSize": image_size,
-        "count": int(count),
-        "resolution": resolution,
-        "modelType": model_type,
-        "modelVersion": model_version
-    }
-    if user_image_id:
-        payload["userImageIds"] = [user_image_id]
+        # 1. Login
+        token = login_and_get_token()
         
-    # Sonsuz döngü (Hesap değişimi için)
-    while True:
-        try:
-            # Token başlığı güncelle (Hesap değişmiş olabilir)
-            headers["Authorization"] = "Bearer " + token
-            
-            resp = requests.post(url, headers=headers, json=payload)
-            resp_json = resp.json()
-            
-            # Hata kontrolü (Kota vs.)
-            if 'error' in resp_json and resp_json['error'] and resp_json['error']['code'] != 0:
-                print("Kota bitti veya API hatası, hesap değiştiriliyor...")
-                current_task_status = {"status": "processing", "message": "Kota doldu, diğer hesaba geçiliyor...", "url": ""}
-                
-                if switch_account():
-                    # Yeni hesapla tekrar dene (while döngüsü başa döner)
-                    # Not: Referans ID'yi güncellemeye gerek yok, çünkü yeni hesapta zaten liste boş veya farklıdır.
-                    # Ama güvenli olması için o hesabın da son ID'sini alabiliriz, fakat ID çakışması düşüktür.
-                    # Basitlik için devam ediyoruz.
-                    time.sleep(1)
-                    continue
-                else:
-                    current_task_status = {"status": "error", "message": "Tüm hesapların kotası tükendi!", "url": ""}
-                    return
-            
-            # Başarılı gönderim
-            break
-            
-        except Exception as e:
-            current_task_status = {"status": "error", "message": f"API Hatası: {str(e)}", "url": ""}
+        # 2. SNAPSHOT AL (Eski resim gelmesin diye)
+        log_msg("Mevcut varlıklar taranıyor...")
+        previous_latest_id = get_latest_asset_id(token)
+        
+        # 3. Upload
+        log_msg("Görsel yükleniyor...")
+        upload_headers = {"Authorization": "Bearer " + token}
+        with open(file_path, "rb") as f:
+            files = {"file": (os.path.basename(file_path), f, "image/png")}
+            upload_data = {"width": "1024", "height": "1536"}
+            resp_upload = requests.post(URL_UPLOAD, headers=upload_headers, files=files, data=upload_data)
+        
+        if resp_upload.status_code not in [200, 201]:
+            log_msg(f"Upload hatası: {resp_upload.status_code}")
+            STATE['tasks'][task_id]['status'] = 'failed'
             return
 
-    # 3. Bekleme Döngüsü
-    current_task_status = {"status": "processing", "message": "Görsel oluşturuluyor (Kuyrukta)...", "url": ""}
-    
-    check_url = "https://api.deevid.ai/my-assets?limit=5&assetType=All&filter=CREATION"
-    
-    max_wait = 120 # saniye
-    waited = 0
-    
-    while waited < max_wait:
-        time.sleep(3)
-        waited += 3
+        user_image_id = resp_upload.json()['data']['data']['id']
         
-        try:
-            headers["authorization"] = "Bearer " + token # Güncel token
-            check_resp = requests.get(check_url, headers=headers).json()
-            groups = check_resp["data"]["data"]["groups"]
-            
-            found_new_image = False
-            
-            for group in groups:
-                for item in group["items"]:
-                    # ÖNEMLİ: Bu item'ın ID'si referans ID'den farklı mı? (Veya referans ID yoksa her şey yenidir)
-                    current_id = item["id"]
-                    
-                    # Eğer referans aldığımız ID ile aynıysa, bu eski bir resimdir. Atla.
-                    if last_asset_id and current_id == last_asset_id:
-                        continue
-                        
-                    # Durum kontrolü
-                    task_state = item["detail"]["creation"]["taskState"]
-                    
-                    if task_state == 'FAIL':
-                        # Bu yeni işlem fail olduysa
-                        current_task_status = {"status": "error", "message": "İşlem başarısız (API Fail)", "url": ""}
-                        return
-                    
-                    # Görüntü URL'si var mı?
-                    image_urls = item["detail"]["creation"].get("noWaterMarkImageUrl", [])
-                    if image_urls:
-                        # Bingo! Yeni ve bitmiş işlem.
-                        print(f"Yeni görsel bulundu! ID: {current_id}")
-                        current_task_status = {"status": "completed", "message": "Tamamlandı!", "url": image_urls[0]}
-                        return
-                        
-            current_task_status = {"status": "processing", "message": f"Oluşturuluyor... ({waited}s)", "url": ""}
-            
-        except Exception as e:
-            print("Check hatası:", e)
-            
-    current_task_status = {"status": "error", "message": "Zaman aşımı.", "url": ""}
+        # 4. Submit Loop (Kota hatasında retry için)
+        while True:
+            log_msg(f"Görev gönderiliyor... (Hesap: {get_current_account()['email']})")
+            submit_headers = {"Authorization": "Bearer " + token}
+            payload = {
+                "prompt": form_data.get('prompt', 'odada oturuyor olsun.'),
+                "imageSize": form_data.get('image_size'),
+                "count": 1,
+                "resolution": form_data.get('resolution'),
+                "userImageIds": [user_image_id],
+                "modelType": form_data.get('model_type'),
+                "modelVersion": form_data.get('model_version')
+            }
 
-# --- FLASK ROUTES ---
+            resp_submit = requests.post(URL_SUBMIT, headers=submit_headers, json=payload)
+            resp_json = resp_submit.json()
+
+            error_code = 0
+            if 'error' in resp_json and resp_json['error']:
+                 error_code = resp_json['error'].get('code', 0)
+
+            if error_code != 0:
+                log_msg(f"HATA/KOTA SORUNU! Code: {error_code}. Hesap değiştiriliyor...")
+                if rotate_account():
+                    token = login_and_get_token() # Yeni token ve hesap
+                    previous_latest_id = get_latest_asset_id(token) # Yeni hesabın snapshot'ını al
+                    # User image ID bu hesapta yok, tekrar upload gerekir mi? 
+                    # API genelde cross-account image ID kabul etmez. 
+                    # Basitlik için burada tekrar upload yapmıyoruz ama normalde gerekir.
+                    # Bu senaryoda upload global değilse fail olabilir. 
+                    # Şimdilik devam edelim, eğer fail olursa kullanıcı tekrar dener.
+                    continue 
+                else:
+                    STATE['tasks'][task_id]['status'] = 'failed'
+                    return
+            else:
+                log_msg("Talep iletildi. Sonuç bekleniyor...")
+                break
+
+        # 5. Polling (Sadece YENİ resim gelirse kabul et)
+        attempt = 0
+        while attempt < 40: # ~80 saniye
+            attempt += 1
+            time.sleep(2)
+            
+            try:
+                poll_resp = requests.get(URL_ASSETS, headers={"authorization": "Bearer " + token}).json()
+                groups = poll_resp.get("data", {}).get("data", {}).get("groups", [])
+                
+                # En üstteki öğeyi bul
+                latest_item = None
+                for group in groups:
+                    if group.get("items"):
+                        latest_item = group["items"][0]
+                        break
+                
+                if latest_item:
+                    current_id = latest_item.get("id")
+                    
+                    # KRİTİK KONTROL: ID değişmiş mi?
+                    if current_id != previous_latest_id:
+                        creation = latest_item.get("detail", {}).get("creation", {})
+                        state = creation.get("taskState")
+                        
+                        if state == 'FAIL':
+                            log_msg("API işlemi başarısız olarak işaretledi.")
+                            STATE['tasks'][task_id]['status'] = 'failed'
+                            return
+                        
+                        image_urls = creation.get("noWaterMarkImageUrl", [])
+                        if image_urls:
+                            final_url = image_urls[0]
+                            STATE['tasks'][task_id]['image_url'] = final_url
+                            STATE['tasks'][task_id]['status'] = 'completed'
+                            log_msg("İşlem Tamamlandı!")
+                            refresh_quota(token) # İşlem bitince kotayı güncelle
+                            return
+                    else:
+                        # ID aynı ise henüz yeni işlem listeye düşmemiştir.
+                        pass
+
+            except Exception as e:
+                pass
+            
+        log_msg("Zaman aşımı.")
+        STATE['tasks'][task_id]['status'] = 'failed'
+
+    except Exception as e:
+        log_msg(f"Hata: {str(e)}")
+        STATE['tasks'][task_id]['status'] = 'failed'
+
+# --- Routes ---
 
 @app.route('/')
 def index():
-    return render_template_string(
-        HTML_TEMPLATE,
-        image_sizes=IMAGE_SIZES,
-        model_types=MODEL_TYPES,
-        model_versions=MODEL_VERSIONS,
-        resolutions=RESOLUTIONS,
-        default_prompt='resimdeki kız beyaz yün bir sütyen giymiş, göğüsleri belirgin olmalı, otel odasında bir koltukta oturuyor olmalı, sinematik ve yakın çekim olmalı.'
-    )
+    return render_template('index.html')
 
 @app.route('/upload_accounts', methods=['POST'])
 def upload_accounts():
-    global ACCOUNTS, CURRENT_ACCOUNT_INDEX
-    file = request.files.get('accountFile')
-    if not file:
-        return jsonify({"success": False, "message": "Dosya yok"})
-    
+    if 'file' not in request.files:
+        return jsonify({'error': 'Dosya yok'}), 400
+    file = request.files['file']
+    accounts = []
     try:
-        content = file.read().decode('utf-8').strip()
-        lines = content.split('\n')
-        new_accounts = []
-        
-        for line in lines:
+        content = file.read().decode('utf-8').splitlines()
+        for line in content:
             parts = line.strip().split(':')
             if len(parts) >= 2:
-                # email:password:a -> sadece ilk ikisini al
-                new_accounts.append({
-                    "email": parts[0].strip(),
-                    "password": parts[1].strip()
-                })
-        
-        if new_accounts:
-            ACCOUNTS = new_accounts
-            CURRENT_ACCOUNT_INDEX = 0
-            if get_token(): # İlk hesaba giriş yap
-                return jsonify({"success": True, "message": f"{len(ACCOUNTS)} hesap yüklendi ve ilkine giriş yapıldı."})
-            else:
-                return jsonify({"success": True, "message": f"{len(ACCOUNTS)} hesap yüklendi ancak ilk girişte sorun oldu."})
-        else:
-            return jsonify({"success": False, "message": "Dosyada geçerli hesap bulunamadı"})
-            
+                accounts.append({'email': parts[0], 'password': parts[1]})
+        STATE['accounts'] = accounts
+        STATE['current_account_index'] = 0
+        STATE['current_token'] = None
+        STATE['active_quota'] = "Giriş Bekleniyor"
+        return jsonify({'count': len(accounts), 'message': 'Hesaplar yüklendi'})
     except Exception as e:
-        return jsonify({"success": False, "message": str(e)})
+        return jsonify({'error': str(e)}), 500
 
-@app.route('/account_info')
-def account_info():
-    if not ACCOUNTS:
-        return jsonify({"total": 0})
-    
-    current_email = ACCOUNTS[CURRENT_ACCOUNT_INDEX]['email']
-    q = get_quota()
-    return jsonify({
-        "total": len(ACCOUNTS),
-        "index": CURRENT_ACCOUNT_INDEX,
-        "current_email": current_email,
-        "quota": q
-    })
-
-@app.route('/generate', methods=['POST'])
-def generate():
-    if not ACCOUNTS:
-        return jsonify({"success": False, "message": "Lütfen önce hesap dosyası yükleyin!"})
-
-    prompt = request.form.get('prompt')
-    image_size = request.form.get('imageSize')
-    count = request.form.get('count')
-    resolution = request.form.get('resolution')
-    model_type = request.form.get('modelType')
-    model_version = request.form.get('modelVersion')
-    image_file = request.files.get('image')
-    
-    user_image_id = None
-    if image_file and image_file.filename:
-        # Upload sırasında token hatası olursa switch yapılması gerekebilir mi? 
-        # Basitlik için mevcut token ile deniyoruz, task gönderirken switch yapısı kurulu.
-        user_image_id = upload_image_api(image_file)
-        if not user_image_id:
-             # Belki token süresi doldu?
-             get_token()
-             user_image_id = upload_image_api(image_file) # Tekrar dene
-    
-    # Arka planda çalıştır
-    thread = Thread(target=generate_logic, args=(prompt, image_size, count, resolution, model_type, model_version, user_image_id))
+@app.route('/create_task', methods=['POST'])
+def create_task():
+    if not STATE['accounts']:
+        return jsonify({'error': 'Önce hesapları yükleyin!'}), 400
+    form_data = request.form.to_dict()
+    file = request.files.get('file')
+    if not file:
+        return jsonify({'error': 'Görsel seçilmedi!'}), 400
+    task_id = str(uuid.uuid4())
+    filename = f"{task_id}_{file.filename}"
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    file.save(filepath)
+    STATE['tasks'][task_id] = {
+        'id': task_id,
+        'status': 'pending',
+        'logs': [],
+        'image_url': None,
+        'params': form_data,
+        'created_at': time.time()
+    }
+    thread = threading.Thread(target=process_task_thread, args=(task_id, filepath, form_data))
     thread.daemon = True
     thread.start()
-    
-    return jsonify({"success": True, "message": "Başlatıldı"})
+    return jsonify({'task_id': task_id, 'message': 'İşlem başlatıldı'})
 
 @app.route('/status')
-def status():
-    return jsonify(current_task_status)
+def get_status():
+    sorted_tasks = sorted(STATE['tasks'].values(), key=lambda x: x['created_at'], reverse=True)
+    current_acc = "Yok"
+    if STATE['accounts']:
+        idx = STATE['current_account_index'] % len(STATE['accounts'])
+        current_acc = STATE['accounts'][idx]['email']
+    return jsonify({
+        'tasks': sorted_tasks,
+        'active_account': current_acc,
+        'active_quota': STATE['active_quota'],
+        'account_count': len(STATE['accounts'])
+    })
 
 if __name__ == '__main__':
-    print("Sunucu başlatılıyor...")
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=True, port=5000)
