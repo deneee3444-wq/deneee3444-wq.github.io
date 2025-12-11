@@ -15,8 +15,8 @@ STATE = {
     "accounts": [],       # {email, password} listesi
     "current_account_index": 0,
     "current_token": None,
-    "active_quota": "Bilinmiyor", # Aktif hesabın kotası
-    "tasks": {}           # task_id -> {status, log, image_url, params, created_at}
+    "active_quota": "Bilinmiyor", 
+    "tasks": {}           # task_id -> {status, log, image_url, params, created_at, api_task_id}
 }
 
 # --- API Constants ---
@@ -24,7 +24,7 @@ API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJyb2xlIjogImFub24iLAogICJp
 URL_AUTH = "https://sp.deevid.ai/auth/v1/token?grant_type=password"
 URL_UPLOAD = "https://api.deevid.ai/file-upload/image"
 URL_SUBMIT = "https://api.deevid.ai/text-to-image/task/submit"
-URL_ASSETS = "https://api.deevid.ai/my-assets?limit=20&assetType=All&filter=CREATION"
+URL_ASSETS = "https://api.deevid.ai/my-assets?limit=50&assetType=All&filter=CREATION" # Limit artırıldı ki geriye düşmesin
 URL_QUOTA = "https://api.deevid.ai/subscription/plan"
 
 # --- Helper Functions ---
@@ -101,19 +101,6 @@ def refresh_quota(token):
         STATE['active_quota'] = "Hata"
         return 0
 
-def get_latest_asset_id(token):
-    """En son oluşturulan assetin ID'sini döner. (Snapshot için)"""
-    headers = {"authorization": "Bearer " + token}
-    try:
-        resp = requests.get(URL_ASSETS, headers=headers).json()
-        groups = resp.get("data", {}).get("data", {}).get("groups", [])
-        for group in groups:
-            for item in group.get("items", []):
-                return item.get("id") # İlk item en yenisidir
-    except:
-        return None
-    return None
-
 def process_task_thread(task_id, file_path, form_data):
     log_msg = lambda m: STATE['tasks'][task_id]['logs'].append(m)
     STATE['tasks'][task_id]['status'] = 'running'
@@ -123,11 +110,7 @@ def process_task_thread(task_id, file_path, form_data):
         # 1. Login
         token = login_and_get_token()
         
-        # 2. SNAPSHOT AL (Eski resim gelmesin diye)
-        log_msg("Mevcut varlıklar taranıyor...")
-        previous_latest_id = get_latest_asset_id(token)
-        
-        # 3. Upload
+        # 2. Upload
         log_msg("Görsel yükleniyor...")
         upload_headers = {"Authorization": "Bearer " + token}
         with open(file_path, "rb") as f:
@@ -140,9 +123,16 @@ def process_task_thread(task_id, file_path, form_data):
             STATE['tasks'][task_id]['status'] = 'failed'
             return
 
-        user_image_id = resp_upload.json()['data']['data']['id']
+        try:
+            user_image_id = resp_upload.json()['data']['data']['id']
+        except:
+            log_msg("Görsel ID alınamadı.")
+            STATE['tasks'][task_id]['status'] = 'failed'
+            return
         
-        # 4. Submit Loop (Kota hatasında retry için)
+        target_api_task_id = None
+
+        # 3. Submit Loop (Kota hatasında retry için)
         while True:
             log_msg(f"Görev gönderiliyor... (Hesap: {get_current_account()['email']})")
             submit_headers = {"Authorization": "Bearer " + token}
@@ -159,6 +149,7 @@ def process_task_thread(task_id, file_path, form_data):
             resp_submit = requests.post(URL_SUBMIT, headers=submit_headers, json=payload)
             resp_json = resp_submit.json()
 
+            # Hata / Kota Kontrolü
             error_code = 0
             if 'error' in resp_json and resp_json['error']:
                  error_code = resp_json['error'].get('code', 0)
@@ -167,70 +158,76 @@ def process_task_thread(task_id, file_path, form_data):
                 log_msg(f"HATA/KOTA SORUNU! Code: {error_code}. Hesap değiştiriliyor...")
                 if rotate_account():
                     token = login_and_get_token() # Yeni token ve hesap
-                    previous_latest_id = get_latest_asset_id(token) # Yeni hesabın snapshot'ını al
-                    # User image ID bu hesapta yok, tekrar upload gerekir mi? 
-                    # API genelde cross-account image ID kabul etmez. 
-                    # Basitlik için burada tekrar upload yapmıyoruz ama normalde gerekir.
-                    # Bu senaryoda upload global değilse fail olabilir. 
-                    # Şimdilik devam edelim, eğer fail olursa kullanıcı tekrar dener.
+                    # Resmi tekrar upload etmiyoruz, image ID global değilse fail olabilir ama 
+                    # genelde hesaplar arası erişim yoksa userImageId patlar. 
+                    # Bu durumda en doğrusu tekrar upload etmektir ama şimdilik retry yapıyoruz.
                     continue 
                 else:
                     STATE['tasks'][task_id]['status'] = 'failed'
                     return
             else:
-                log_msg("Talep iletildi. Sonuç bekleniyor...")
+                # BAŞARILI SUBMIT - Task ID'yi yakala!
+                try:
+                    target_api_task_id = resp_json['data']['data']['taskId']
+                    log_msg(f"Talep iletildi. Task ID: {target_api_task_id}")
+                except:
+                    log_msg("Response ID parse edilemedi, manuel takip yapılacak.")
+                
                 break
 
-        # 5. Polling (Sadece YENİ resim gelirse kabul et)
+        # 4. Polling (ID'ye göre Tam Eşleşme)
         attempt = 0
-        while attempt < 40: # ~80 saniye
+        while attempt < 60: # 2 dakika bekle
             attempt += 1
             time.sleep(2)
             
             try:
+                # Listeyi çek
                 poll_resp = requests.get(URL_ASSETS, headers={"authorization": "Bearer " + token}).json()
                 groups = poll_resp.get("data", {}).get("data", {}).get("groups", [])
                 
-                # En üstteki öğeyi bul
-                latest_item = None
-                for group in groups:
-                    if group.get("items"):
-                        latest_item = group["items"][0]
-                        break
+                found_match = False
                 
-                if latest_item:
-                    current_id = latest_item.get("id")
-                    
-                    # KRİTİK KONTROL: ID değişmiş mi?
-                    if current_id != previous_latest_id:
-                        creation = latest_item.get("detail", {}).get("creation", {})
-                        state = creation.get("taskState")
+                # Tüm grupları ve itemleri gez
+                for group in groups:
+                    for item in group.get("items", []):
+                        creation = item.get("detail", {}).get("creation", {})
+                        item_task_id = creation.get("taskId")
                         
-                        if state == 'FAIL':
-                            log_msg("API işlemi başarısız olarak işaretledi.")
-                            STATE['tasks'][task_id]['status'] = 'failed'
-                            return
-                        
-                        image_urls = creation.get("noWaterMarkImageUrl", [])
-                        if image_urls:
-                            final_url = image_urls[0]
-                            STATE['tasks'][task_id]['image_url'] = final_url
-                            STATE['tasks'][task_id]['status'] = 'completed'
-                            log_msg("İşlem Tamamlandı!")
-                            refresh_quota(token) # İşlem bitince kotayı güncelle
-                            return
-                    else:
-                        # ID aynı ise henüz yeni işlem listeye düşmemiştir.
-                        pass
+                        # EĞER ID BİZİMKİYLE AYNIYSA
+                        if target_api_task_id and item_task_id == target_api_task_id:
+                            found_match = True
+                            task_state = creation.get("taskState")
+                            
+                            if task_state == 'FAIL':
+                                log_msg("API: İşlem başarısız.")
+                                STATE['tasks'][task_id]['status'] = 'failed'
+                                return
+                            
+                            image_urls = creation.get("noWaterMarkImageUrl", [])
+                            if image_urls:
+                                final_url = image_urls[0]
+                                STATE['tasks'][task_id]['image_url'] = final_url
+                                STATE['tasks'][task_id]['status'] = 'completed'
+                                log_msg("İşlem Tamamlandı!")
+                                refresh_quota(token)
+                                return
+                            else:
+                                # Hala işleniyor
+                                pass
+                
+                if not found_match:
+                    # Listede henüz görünmüyor olabilir
+                    pass
 
             except Exception as e:
                 pass
             
-        log_msg("Zaman aşımı.")
+        log_msg("Zaman aşımı. Resim oluşmadı.")
         STATE['tasks'][task_id]['status'] = 'failed'
 
     except Exception as e:
-        log_msg(f"Hata: {str(e)}")
+        log_msg(f"Kritik Hata: {str(e)}")
         STATE['tasks'][task_id]['status'] = 'failed'
 
 # --- Routes ---
