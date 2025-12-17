@@ -3,197 +3,388 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NanoBanana Generator v3</title>
+    <title>NanoBanana Generator Pro</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
     <style>
-        .custom-scroll::-webkit-scrollbar { width: 6px; }
-        .custom-scroll::-webkit-scrollbar-track { background: #1a1a1a; }
-        .custom-scroll::-webkit-scrollbar-thumb { background: #4f46e5; border-radius: 4px; }
-        .custom-scroll::-webkit-scrollbar-thumb:hover { background: #4338ca; }
+        .custom-scroll::-webkit-scrollbar { width: 5px; height: 5px; }
+        .custom-scroll::-webkit-scrollbar-track { background: #0f0f10; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #3730a3; border-radius: 99px; }
+        .custom-scroll::-webkit-scrollbar-thumb:hover { background: #4f46e5; }
         
-        body { background-color: #0f0f10; color: #e2e8f0; }
+        body { background-color: #050505; color: #e2e8f0; font-family: 'Segoe UI', system-ui, sans-serif; }
         
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        .task-card-enter { animation: fadeIn 0.3s ease-out; }
+        .glass-panel { background: rgba(24, 24, 27, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.05); }
+        .task-card-enter { animation: cardIn 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
+        
+        @keyframes cardIn {
+            from { opacity: 0; transform: translateY(20px) scale(0.95); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        
+        /* Checkbox switch slider */
+        .toggle-checkbox:checked { right: 0; border-color: #6366f1; }
+        .toggle-checkbox:checked + .toggle-label { background-color: #6366f1; }
     </style>
 </head>
-<body class="min-h-screen w-full flex flex-col md:flex-row font-sans md:h-screen md:overflow-hidden">
+<body class="w-full flex flex-col md:flex-row md:h-screen md:overflow-hidden bg-[#050505] text-[#e2e8f0]">
 
-    <!-- LEFT PANEL: CONTROLS -->
-    <div class="w-full md:w-[400px] lg:w-[450px] bg-[#18181b] border-b md:border-b-0 md:border-r border-gray-800 flex flex-col md:h-full shadow-2xl z-20 shrink-0">
+    <!-- LEFT SIDEBAR: CONTROLS -->
+    <div class="w-full md:w-[420px] lg:w-[460px] flex flex-col md:h-full bg-[#0a0a0a] border-b md:border-b-0 md:border-r border-white/5 z-20 shadow-2xl shrink-0">
+        
         <!-- Header -->
-        <div class="p-5 border-b border-gray-800 bg-[#18181b]">
-            <h1 class="text-xl font-bold text-indigo-500 flex items-center gap-2 tracking-tight">
-                <i class="fa-solid fa-bolt"></i> NanoBanana v3
+        <div class="p-6 border-b border-white/5 bg-[#0a0a0a]">
+            <h1 class="text-2xl font-black bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-transparent bg-clip-text flex items-center gap-3 tracking-tighter">
+                <i class="fa-solid fa-bolt text-indigo-500 text-xl"></i> NANOBANANA <span class="text-xs text-gray-500 font-mono font-normal mt-1 border border-gray-800 px-1 rounded">PRO</span>
             </h1>
             
-            <!-- Account Info Box -->
-            <div class="mt-4 bg-[#27272a] p-3 rounded-lg border border-gray-700 shadow-inner relative overflow-hidden group">
-                <div class="absolute top-0 right-0 w-16 h-16 bg-white/5 rounded-full -mr-8 -mt-8 blur-2xl group-hover:bg-white/10 transition"></div>
-                <div class="flex justify-between items-center text-xs mb-1 relative z-10">
-                    <span class="text-gray-400">Aktif Hesap</span>
-                    <span id="active-user" class="text-white font-mono truncate max-w-[180px]">...</span>
+            <!-- Account Info -->
+            <div class="mt-5 bg-gradient-to-br from-[#18181b] to-[#131315] p-4 rounded-2xl border border-white/5 relative overflow-hidden group">
+                <div class="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 rounded-full -mr-10 -mt-10 blur-3xl"></div>
+                
+                <div class="flex justify-between items-center mb-1 relative z-10">
+                    <span class="text-xs text-gray-500 font-bold uppercase tracking-wider">Aktif Hesap</span>
+                    <span id="active-user" class="text-indigo-200 text-xs font-mono bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20 truncate max-w-[150px]">...</span>
                 </div>
-                <div class="flex justify-between items-center text-xs relative z-10">
-                    <span class="text-gray-400">Kalan Kota</span>
-                    <span id="active-quota" class="text-green-400 font-bold font-mono text-base">...</span>
+                
+                <div class="flex items-baseline gap-2 relative z-10 mt-1">
+                    <span id="active-quota" class="text-3xl font-bold text-white tracking-tight">--</span>
+                    <span class="text-xs text-gray-500">kalan kredi</span>
                 </div>
-                <div class="text-[10px] text-gray-500 mt-2 flex justify-between items-end border-t border-gray-600/50 pt-2">
-                    <span id="account-count-badge" class="bg-gray-700 px-1.5 py-0.5 rounded text-gray-300">0 Hesap</span>
-                    <span id="account-status">Yüklü Değil</span>
+
+                <div class="flex justify-between items-center mt-3 pt-3 border-t border-white/5 relative z-10">
+                    <div class="flex items-center gap-2">
+                         <span class="relative flex h-2 w-2">
+                          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                          <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                        </span>
+                        <span id="account-status" class="text-[10px] text-green-500 font-bold uppercase tracking-widest">Sistem Hazır</span>
+                    </div>
+                    <span id="account-count-badge" class="text-[10px] bg-[#27272a] text-gray-400 px-2 py-1 rounded-full border border-white/5">0 Hesap</span>
                 </div>
             </div>
         </div>
 
-        <!-- Form Area -->
-        <div class="flex-1 overflow-y-auto custom-scroll p-5 space-y-6">
+        <!-- Form Container -->
+        <div class="flex-1 p-6 space-y-6 md:overflow-y-auto custom-scroll">
             
-            <!-- Accounts Upload -->
-            <div class="bg-[#27272a]/50 p-4 rounded-lg border border-gray-700/50 hover:border-gray-600 transition">
-                <label class="text-xs font-bold text-gray-400 uppercase mb-2 block tracking-wider">1. Hesap Listesi (.txt)</label>
+            <!-- Account Upload -->
+            <div class="bg-[#131315] rounded-xl border border-white/5 p-4 hover:border-indigo-500/30 transition group">
+                <label class="flex justify-between items-center text-[10px] font-bold text-gray-500 uppercase mb-3 tracking-widest">
+                    <span><i class="fa-solid fa-users-gear mr-1"></i> Hesap Listesi (.txt)</span>
+                    <i class="fa-solid fa-cloud-arrow-up group-hover:text-indigo-400 transition"></i>
+                </label>
                 <div class="flex gap-2">
                     <input type="file" id="accountsFile" accept=".txt" class="block w-full text-xs text-gray-400
-                        file:mr-2 file:py-1.5 file:px-3 file:rounded-md file:border-0
+                        file:mr-2 file:py-2 file:px-3 file:rounded-lg file:border-0
                         file:text-xs file:font-bold file:bg-indigo-600 file:text-white
-                        hover:file:bg-indigo-500 cursor-pointer bg-black/20 rounded-md border border-gray-600">
-                    <button onclick="uploadAccounts()" class="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1 rounded-md text-xs transition shadow-lg shadow-emerald-900/20">
-                        <i class="fa-solid fa-check"></i>
+                        hover:file:bg-indigo-500 cursor-pointer bg-black/20 rounded-lg border border-white/10">
+                    <button onclick="uploadAccounts()" class="bg-indigo-600 hover:bg-indigo-500 text-white w-10 rounded-lg transition shadow-lg shadow-indigo-900/20 flex items-center justify-center">
+                        <i class="fa-solid fa-plus"></i>
                     </button>
                 </div>
-                <p class="text-[9px] text-gray-500 mt-1">*Mevcut listeye eklenir. Duplicate'ler atlanır.</p>
             </div>
 
-            <form id="taskForm" class="space-y-5">
-                <!-- Image Upload -->
-                <div>
-                    <label class="text-xs font-bold text-gray-400 uppercase mb-2 block tracking-wider">2. Kaynak Resim</label>
-                    <div class="relative group h-32">
-                        <input type="file" name="file" id="sourceFile" accept="image/*" required 
-                            class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                            onchange="previewImage(this)">
-                        <div class="absolute inset-0 border-2 border-dashed border-gray-700 rounded-xl flex flex-col items-center justify-center text-center group-hover:border-indigo-500 group-hover:bg-[#202025] transition bg-[#09090b]" id="dropZone">
-                            <i class="fa-solid fa-cloud-arrow-up text-3xl text-gray-600 mb-2 group-hover:text-indigo-400 transition"></i>
-                            <p class="text-xs text-gray-500 font-medium">Resim Seç veya Sürükle</p>
+            <form id="taskForm" class="space-y-6">
+                <!-- Mode Switch Tabs -->
+                <div class="bg-[#131315] p-1 rounded-xl flex border border-white/5">
+                    <button type="button" onclick="setMode('text')" id="tab-text" class="flex-1 py-2 rounded-lg text-xs font-bold transition-all bg-indigo-600 text-white shadow-lg">
+                        <i class="fa-solid fa-paragraph mr-1"></i> Metinden Resim
+                    </button>
+                    <button type="button" onclick="setMode('image')" id="tab-image" class="flex-1 py-2 rounded-lg text-xs font-bold transition-all text-gray-400 hover:text-white hover:bg-white/5">
+                        <i class="fa-solid fa-images mr-1"></i> Resimden Resim
+                    </button>
+                </div>
+
+                <!-- Image Upload Area (Conditional) -->
+                <div id="imageUploadArea" class="hidden transition-all duration-300">
+                    <label class="text-[10px] font-bold text-gray-500 uppercase mb-2 block tracking-widest">Kaynak Resimler</label>
+                    <div class="relative group h-36">
+                        <input type="file" name="files[]" id="sourceFiles" accept="image/*" multiple required disabled 
+                            class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+                            onchange="handleFiles(this)">
+                        
+                        <div class="absolute inset-0 border-2 border-dashed border-gray-700 rounded-xl flex flex-col items-center justify-center text-center group-hover:border-indigo-500 group-hover:bg-indigo-500/5 transition bg-[#09090b] overflow-hidden" id="dropZone">
+                            <i class="fa-solid fa-layer-group text-3xl text-gray-600 mb-2 group-hover:text-indigo-400 transition transform group-hover:scale-110"></i>
+                            <p class="text-xs text-gray-500 font-medium group-hover:text-gray-300">Resimleri Seç veya Sürükle</p>
+                            <p class="text-[9px] text-gray-600 mt-1">(Çoklu seçim desteklenir)</p>
                         </div>
-                        <img id="imgPreview" class="absolute inset-0 w-full h-full object-contain bg-black rounded-xl border border-gray-700 hidden z-0 pointer-events-none">
+                        <div id="filePreviewGrid" class="absolute inset-0 bg-[#09090b] rounded-xl border border-gray-700 hidden z-10 grid grid-cols-3 gap-1 p-1 overflow-auto pointer-events-none">
+                            <!-- Previews injected here -->
+                        </div>
                     </div>
                 </div>
 
                 <!-- Prompt -->
-                <div>
-                    <label class="text-xs font-bold text-gray-400 uppercase mb-2 block tracking-wider">Prompt</label>
-                    <textarea name="prompt" rows="3" class="w-full bg-[#09090b] border border-gray-700 rounded-lg p-3 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none resize-none text-gray-200 placeholder-gray-600 transition" placeholder="Örn: odada oturuyor olsun.">odada oturuyor olsun.</textarea>
+                <div class="relative">
+                    <label class="text-[10px] font-bold text-gray-500 uppercase mb-2 block tracking-widest">Prompt</label>
+                    <textarea name="prompt" rows="4" class="w-full bg-[#131315] border border-white/10 rounded-xl p-4 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none resize-none text-gray-200 placeholder-gray-700 transition" placeholder="Hayalinizdeki sahneyi detaylıca anlatın...">odada oturuyor olsun.</textarea>
+                    <div class="absolute bottom-3 right-3 text-[10px] text-gray-600 bg-black/50 px-2 py-1 rounded border border-white/5 pointer-events-none">TR/EN</div>
                 </div>
 
                 <!-- Settings Grid -->
-                <div class="grid grid-cols-2 gap-3 bg-[#27272a]/30 p-3 rounded-lg border border-gray-800">
-                    <div>
-                        <label class="text-[10px] font-bold text-gray-500 uppercase block mb-1">Model</label>
-                        <select name="model_type" class="w-full bg-[#18181b] border border-gray-700 rounded p-1.5 text-xs focus:border-indigo-500 outline-none text-gray-300">
-                            <option value="MODEL_FOUR" selected>MODEL_FOUR</option>
-                            <option value="MODEL_FIVE">MODEL_FIVE</option>
-                            <option value="MODEL_THREE">MODEL_THREE</option>
-                        </select>
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="space-y-1">
+                        <label class="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Model Versiyonu</label>
+                        <div class="relative">
+                            <select name="model_version" class="w-full bg-[#131315] border border-white/10 rounded-lg py-2.5 px-3 text-xs focus:border-indigo-500 outline-none text-gray-300 appearance-none">
+                                <option value="MODEL_FOUR_NANO_BANANA_PRO" selected>🍌 Nano Banana PRO</option>
+                                <option value="MODEL_FOUR_NANO_BANANA">🍌 Nano Banana</option>
+                            </select>
+                            <i class="fa-solid fa-chevron-down absolute right-3 top-3 text-gray-600 text-xs pointer-events-none"></i>
+                        </div>
                     </div>
-                    <div>
-                        <label class="text-[10px] font-bold text-gray-500 uppercase block mb-1">Version</label>
-                        <select name="model_version" class="w-full bg-[#18181b] border border-gray-700 rounded p-1.5 text-xs focus:border-indigo-500 outline-none text-gray-300">
-                            <option value="MODEL_FOUR_NANO_BANANA_PRO" selected>NANO BANANA PRO</option>
-                            <option value="MODEL_FOUR_NANO_BANANA">NANO BANANA</option>
-                            <option value="MODEL_FIVE_SD_4_0">SD 4.0</option>
-                        </select>
+
+                    <div class="space-y-1">
+                        <label class="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Çözünürlük</label>
+                        <div class="relative">
+                            <select name="resolution" class="w-full bg-[#131315] border border-white/10 rounded-lg py-2.5 px-3 text-xs focus:border-indigo-500 outline-none text-gray-300 appearance-none">
+                                <option value="2K" selected>✨ 2K (Ultra)</option>
+                                <option value="4K">🌟 4K (Extreme)</option>
+                                <option value="1K">💨 1K (Fast)</option>
+                            </select>
+                            <i class="fa-solid fa-chevron-down absolute right-3 top-3 text-gray-600 text-xs pointer-events-none"></i>
+                        </div>
                     </div>
-                    <div>
-                        <label class="text-[10px] font-bold text-gray-500 uppercase block mb-1">Boyut</label>
-                        <select name="image_size" class="w-full bg-[#18181b] border border-gray-700 rounded p-1.5 text-xs focus:border-indigo-500 outline-none text-gray-300">
-                            <option value="THREE_BY_FOUR" selected>3:4</option>
-                            <option value="FOUR_BY_THREE">4:3</option>
-                            <option value="ONE_BY_ONE">1:1</option>
-                            <option value="SIXTEEN_BY_NINE">16:9</option>
-                            <option value="NINE_BY_SIXTEEN">9:16</option>
-                            <option value="THREE_BY_TWO">3:2</option>
-                            <option value="TWO_BY_THREE">2:3</option>
-                            <option value="AUTO">AUTO</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="text-[10px] font-bold text-gray-500 uppercase block mb-1">Çözünürlük</label>
-                        <select name="resolution" class="w-full bg-[#18181b] border border-gray-700 rounded p-1.5 text-xs focus:border-indigo-500 outline-none text-gray-300">
-                            <option value="2K" selected>2K</option>
-                            <option value="4K">4K</option>
-                            <option value="1K">1K</option>
-                        </select>
+                    
+                    <div class="col-span-2 space-y-1">
+                         <label class="text-[10px] font-bold text-gray-500 uppercase tracking-widest">En Boy Oranı</label>
+                         <div class="grid grid-cols-3 gap-2">
+                             <label class="cursor-pointer">
+                                 <input type="radio" name="image_size" value="SIXTEEN_BY_NINE" class="peer hidden" checked>
+                                 <div class="bg-[#131315] border border-white/10 rounded-lg py-2 text-center text-[10px] text-gray-400 peer-checked:bg-indigo-600 peer-checked:text-white peer-checked:border-transparent transition hover:bg-white/5">16:9</div>
+                             </label>
+                             <label class="cursor-pointer">
+                                 <input type="radio" name="image_size" value="NINE_BY_SIXTEEN" class="peer hidden">
+                                 <div class="bg-[#131315] border border-white/10 rounded-lg py-2 text-center text-[10px] text-gray-400 peer-checked:bg-indigo-600 peer-checked:text-white peer-checked:border-transparent transition hover:bg-white/5">9:16</div>
+                             </label>
+                             <label class="cursor-pointer">
+                                 <input type="radio" name="image_size" value="ONE_BY_ONE" class="peer hidden">
+                                 <div class="bg-[#131315] border border-white/10 rounded-lg py-2 text-center text-[10px] text-gray-400 peer-checked:bg-indigo-600 peer-checked:text-white peer-checked:border-transparent transition hover:bg-white/5">1:1</div>
+                             </label>
+                             <label class="cursor-pointer">
+                                 <input type="radio" name="image_size" value="THREE_BY_FOUR" class="peer hidden">
+                                 <div class="bg-[#131315] border border-white/10 rounded-lg py-2 text-center text-[10px] text-gray-400 peer-checked:bg-indigo-600 peer-checked:text-white peer-checked:border-transparent transition hover:bg-white/5">3:4</div>
+                             </label>
+                             <label class="cursor-pointer">
+                                 <input type="radio" name="image_size" value="FOUR_BY_THREE" class="peer hidden">
+                                 <div class="bg-[#131315] border border-white/10 rounded-lg py-2 text-center text-[10px] text-gray-400 peer-checked:bg-indigo-600 peer-checked:text-white peer-checked:border-transparent transition hover:bg-white/5">4:3</div>
+                             </label>
+                             <label class="cursor-pointer">
+                                 <input type="radio" name="image_size" value="THREE_BY_TWO" class="peer hidden">
+                                 <div class="bg-[#131315] border border-white/10 rounded-lg py-2 text-center text-[10px] text-gray-400 peer-checked:bg-indigo-600 peer-checked:text-white peer-checked:border-transparent transition hover:bg-white/5">3:2</div>
+                             </label>
+                         </div>
                     </div>
                 </div>
             </form>
         </div>
 
-        <!-- Submit Button Area -->
-        <div class="p-5 border-t border-gray-800 bg-[#18181b]">
-            <button onclick="submitTask()" id="submitBtn" class="w-full bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-indigo-500/20 transition transform active:scale-[0.98] flex items-center justify-center gap-2">
-                <i class="fa-solid fa-wand-magic-sparkles"></i>
-                <span>Görevi Başlat</span>
+        <!-- Submit Area -->
+        <div class="p-6 border-t border-white/5 bg-[#0a0a0a] space-y-3 z-30 sticky bottom-0 md:relative">
+            <button onclick="submitTask()" id="submitBtn" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4 rounded-xl shadow-xl shadow-indigo-600/20 transition transform active:scale-[0.98] flex items-center justify-center gap-3 group">
+                <span class="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center group-hover:rotate-90 transition duration-500">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i>
+                </span>
+                <span class="text-lg">Oluştur</span>
+            </button>
+            <p class="text-[10px] text-center text-gray-600">NanoBanana API v3.2 Powered</p>
+        </div>
+    </div>
+
+    <!-- RIGHT PANEL: TASKS -->
+    <div class="flex-1 bg-[#050505] flex flex-col md:h-full relative min-h-screen md:min-h-0">
+        <!-- Decoration Background -->
+        <div class="absolute inset-0 overflow-hidden pointer-events-none">
+            <div class="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-900/10 rounded-full blur-[120px]"></div>
+            <div class="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-purple-900/10 rounded-full blur-[120px]"></div>
+        </div>
+
+        <!-- Toolbar -->
+        <div class="px-8 py-5 border-b border-white/5 flex justify-between items-center bg-[#050505]/80 backdrop-blur z-10 sticky top-0">
+            <div class="flex items-center gap-3">
+                <div class="bg-indigo-500/10 p-2 rounded-lg text-indigo-500">
+                    <i class="fa-solid fa-list-check"></i>
+                </div>
+                <h2 class="text-sm font-bold text-gray-300">İşlem Kuyruğu</h2>
+                <div id="loadingIndicator" class="opacity-0 transition-opacity ml-4 text-xs font-mono text-indigo-400 flex items-center gap-2">
+                    <span class="w-2 h-2 bg-indigo-500 rounded-full animate-pulse"></span> Senkronize ediliyor
+                </div>
+            </div>
+            <button onclick="deleteAllTasks()" class="text-xs font-bold text-red-500 hover:text-white hover:bg-red-600 px-4 py-2 rounded-lg transition border border-red-900/30 hover:border-red-600 bg-red-500/5">
+                <i class="fa-solid fa-trash-can mr-2"></i> Tümünü Sil
+            </button>
+        </div>
+
+        <!-- Task Grid -->
+        <div id="taskList" class="flex-1 p-8 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6 content-start pb-24 md:overflow-y-auto custom-scroll">
+            <!-- Tasks will be injected here -->
+        </div>
+    </div>
+
+    <!-- PROMPT INFO MODAL -->
+    <div id="promptModal" class="fixed inset-0 z-[60] bg-black/80 hidden flex items-center justify-center backdrop-blur-md opacity-0 transition-opacity duration-300">
+        <div class="bg-[#18181b] border border-gray-700 rounded-2xl p-6 max-w-lg w-full shadow-2xl transform scale-95 transition-transform duration-300 relative">
+            <button onclick="closeModal('promptModal')" class="absolute top-4 right-4 text-gray-500 hover:text-white transition"><i class="fa-solid fa-xmark text-lg"></i></button>
+            <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2"><i class="fa-solid fa-circle-info text-indigo-500"></i> Tam Prompt</h3>
+            <div class="bg-black/50 p-4 rounded-xl border border-white/5 mb-4 custom-scroll max-h-[300px] overflow-y-auto">
+                <p id="modalPromptText" class="text-gray-300 text-sm leading-relaxed font-mono"></p>
+            </div>
+            <button onclick="copyModalPrompt()" id="copyBtn" class="w-full bg-gray-700 hover:bg-gray-600 text-white py-3 rounded-xl font-bold transition flex items-center justify-center gap-2">
+                <i class="fa-regular fa-copy"></i> <span>Kopyala</span>
             </button>
         </div>
     </div>
 
-    <!-- RIGHT PANEL: TASKS LIST -->
-    <div class="flex-1 bg-[#09090b] flex flex-col h-full relative overflow-hidden">
-        <!-- Toolbar -->
-        <div class="px-6 py-4 border-b border-gray-800 flex justify-between items-center bg-[#09090b]/95 backdrop-blur z-10 sticky top-0">
-            <h2 class="text-sm font-bold text-gray-300 flex items-center gap-2">
-                <i class="fa-solid fa-list-check text-indigo-500"></i>
-                İşlem Listesi
-            </h2>
-            <div id="loadingIndicator" class="opacity-0 transition-opacity duration-300 text-indigo-400 text-xs font-medium flex items-center gap-2 bg-indigo-500/10 px-3 py-1 rounded-full pointer-events-none">
-                <i class="fa-solid fa-circle-notch fa-spin"></i> Veriler Güncelleniyor...
-            </div>
-        </div>
-
-        <!-- Task Grid -->
-        <div id="taskList" class="flex-1 overflow-y-auto custom-scroll p-6 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-5 content-start pb-20 md:pb-6">
-            <!-- Cards will be injected here via JS -->
-        </div>
+    <!-- IMAGE LIGHTBOX MODAL -->
+    <div id="lightboxModal" class="fixed inset-0 z-[70] bg-black/95 hidden flex items-center justify-center opacity-0 transition-opacity duration-300">
+        <button onclick="closeModal('lightboxModal')" class="absolute top-6 right-8 text-gray-400 hover:text-white transition z-50 bg-black/50 p-2 rounded-full"><i class="fa-solid fa-xmark text-2xl"></i></button>
+        <img id="lightboxImage" src="" class="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl transform scale-95 transition-transform duration-300">
+        <a id="lightboxDownload" href="#" download class="absolute bottom-8 bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-3 rounded-full font-bold shadow-lg transition transform hover:scale-105 flex items-center gap-2">
+            <i class="fa-solid fa-download"></i> Orijinal İndir
+        </a>
     </div>
 
-    <!-- MODAL FOR CONFIRMATION -->
-    <div id="confirmModal" class="fixed inset-0 z-50 bg-black/80 hidden flex items-center justify-center backdrop-blur-sm p-4">
-        <div class="bg-[#18181b] border border-gray-700 rounded-xl p-6 max-w-sm w-full shadow-2xl">
+    <!-- CONFIRMATION MODAL -->
+    <div id="confirmModal" class="fixed inset-0 z-[80] bg-black/80 hidden flex items-center justify-center backdrop-blur-sm p-4">
+        <div class="bg-[#18181b] border border-yellow-500/30 rounded-2xl p-6 max-w-sm w-full shadow-2xl relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-full h-1 bg-yellow-500"></div>
             <div class="text-center">
-                <div class="w-12 h-12 bg-yellow-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <i class="fa-solid fa-triangle-exclamation text-yellow-500 text-xl"></i>
+                <div class="w-16 h-16 bg-yellow-500/10 rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse">
+                    <i class="fa-solid fa-triangle-exclamation text-yellow-500 text-2xl"></i>
                 </div>
-                <h3 class="text-lg font-bold text-white mb-2">Kota Uyarısı</h3>
-                <p class="text-gray-400 text-sm mb-6">Mevcut hesapta hala kota görünüyor ancak işlem hata verdi. Hesap listeden silinip yeni hesaba geçilsin mi?</p>
+                <h3 class="text-xl font-bold text-white mb-2">Kota Sorunu</h3>
+                <p class="text-gray-400 text-sm mb-6 leading-relaxed">Sistemde kota görünüyor ancak API hata döndürdü. Bu hesap hatalı olabilir.</p>
                 <div class="flex gap-3">
-                    <button onclick="respondToSwitch(false)" class="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-2 rounded-lg text-sm font-medium transition">
-                        İptal
-                    </button>
-                    <button onclick="respondToSwitch(true)" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white py-2 rounded-lg text-sm font-medium transition">
-                        Geç ve Hesabı Sil
-                    </button>
+                    <button onclick="respondToSwitch(false)" class="flex-1 bg-gray-800 hover:bg-gray-700 text-white py-3 rounded-xl text-sm font-bold transition">Bekle</button>
+                    <button onclick="respondToSwitch(true)" class="flex-1 bg-gradient-to-r from-yellow-600 to-orange-600 hover:from-yellow-500 hover:to-orange-500 text-white py-3 rounded-xl text-sm font-bold transition shadow-lg shadow-orange-900/20">Hesabı Sil ve Geç</button>
                 </div>
             </div>
         </div>
     </div>
 
     <script>
-        let currentConfirmTaskId = null;
+        // --- UI Logic ---
+        function setMode(mode) {
+            const tabText = document.getElementById('tab-text');
+            const tabImage = document.getElementById('tab-image');
+            const uploadArea = document.getElementById('imageUploadArea');
+            const fileInput = document.getElementById('sourceFiles');
 
-        function previewImage(input) {
-            const file = input.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    const img = document.getElementById('imgPreview');
-                    img.src = e.target.result;
-                    img.classList.remove('hidden');
-                    document.querySelector('#dropZone').classList.add('opacity-0');
-                }
-                reader.readAsDataURL(file);
+            if(mode === 'text') {
+                tabText.classList.replace('text-gray-400', 'text-white');
+                tabText.classList.replace('hover:bg-white/5', 'bg-indigo-600');
+                tabText.classList.add('shadow-lg');
+                
+                tabImage.classList.replace('bg-indigo-600', 'hover:bg-white/5');
+                tabImage.classList.replace('text-white', 'text-gray-400');
+                tabImage.classList.replace('shadow-lg', 'text-gray-400'); // Clean up classes logic a bit loosely but works
+                
+                uploadArea.classList.add('hidden');
+                fileInput.disabled = true;
+                fileInput.value = ''; // Reset files
+                document.getElementById('filePreviewGrid').innerHTML = '';
+                document.getElementById('filePreviewGrid').classList.add('hidden');
+                document.getElementById('dropZone').classList.remove('opacity-0');
+            } else {
+                tabImage.classList.replace('text-gray-400', 'text-white');
+                tabImage.classList.replace('hover:bg-white/5', 'bg-indigo-600');
+                tabImage.classList.add('shadow-lg');
+                
+                tabText.classList.replace('bg-indigo-600', 'hover:bg-white/5');
+                tabText.classList.replace('text-white', 'text-gray-400');
+                
+                uploadArea.classList.remove('hidden');
+                fileInput.disabled = false;
             }
         }
+
+        function handleFiles(input) {
+            const files = input.files;
+            const previewGrid = document.getElementById('filePreviewGrid');
+            const dropZone = document.getElementById('dropZone');
+            
+            if (files.length > 0) {
+                previewGrid.innerHTML = '';
+                previewGrid.classList.remove('hidden');
+                dropZone.classList.add('opacity-0');
+                
+                Array.from(files).forEach(file => {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        const img = document.createElement('img');
+                        img.src = e.target.result;
+                        img.className = "w-full h-20 object-cover rounded-lg border border-gray-600";
+                        previewGrid.appendChild(img);
+                    }
+                    reader.readAsDataURL(file);
+                });
+            } else {
+                previewGrid.classList.add('hidden');
+                dropZone.classList.remove('opacity-0');
+            }
+        }
+
+        // --- Modals ---
+        function showPromptModal(prompt) {
+            document.getElementById('modalPromptText').innerText = prompt;
+            const modal = document.getElementById('promptModal');
+            modal.classList.remove('hidden');
+            // Small delay to allow display:block to apply before opacity transition
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                modal.children[0].classList.remove('scale-95');
+                modal.children[0].classList.add('scale-100');
+            }, 10);
+        }
+
+        function showLightbox(url) {
+            // Use proxy to avoid download force if necessary, or just try direct URL first.
+            // Since user complained about auto-download on "Show", we use proxy route.
+            const proxyUrl = `/proxy_image?url=${encodeURIComponent(url)}`;
+            
+            const img = document.getElementById('lightboxImage');
+            const dl = document.getElementById('lightboxDownload');
+            
+            img.src = proxyUrl;
+            dl.href = url; // Direct link for real download
+            
+            const modal = document.getElementById('lightboxModal');
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                img.classList.remove('scale-95');
+                img.classList.add('scale-100');
+            }, 10);
+        }
+
+        function closeModal(id) {
+            const modal = document.getElementById(id);
+            modal.classList.add('opacity-0');
+            if(modal.children[0].classList.contains('scale-100')) {
+                modal.children[0].classList.remove('scale-100');
+                modal.children[0].classList.add('scale-95');
+            }
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300);
+        }
+
+        function copyModalPrompt() {
+            const text = document.getElementById('modalPromptText').innerText;
+            navigator.clipboard.writeText(text);
+            const btn = document.getElementById('copyBtn');
+            const original = btn.innerHTML;
+            btn.innerHTML = '<i class="fa-solid fa-check"></i> Kopyalandı';
+            btn.classList.add('bg-green-600', 'text-white');
+            setTimeout(() => {
+                btn.innerHTML = original;
+                btn.classList.remove('bg-green-600', 'text-white');
+            }, 2000);
+        }
+
+        // --- API & State ---
+        let currentConfirmTaskId = null;
 
         async function uploadAccounts() {
             const fileInput = document.getElementById('accountsFile');
@@ -217,11 +408,19 @@
             const form = document.getElementById('taskForm');
             const formData = new FormData(form);
             const btn = document.getElementById('submitBtn');
+            const fileInput = document.getElementById('sourceFiles');
 
-            if(!formData.get('file').name) return alert("Lütfen bir resim seçin!");
+            // If text mode, remove files from formData manually or ensure backend handles it
+            // formData automatically includes files if input is not disabled.
+            // Our setMode logic disables the input, so formData won't have files in Text mode. Correct.
+            
+            if(!fileInput.disabled && fileInput.files.length === 0) {
+                return alert("Resimden resim modu için en az bir resim seçmelisiniz!");
+            }
+            if(!formData.get('prompt')) return alert("Prompt girmelisiniz!");
 
             btn.disabled = true;
-            btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Sıraya Alınıyor...';
+            btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin text-xl"></i>';
             btn.classList.add('opacity-75', 'cursor-not-allowed');
 
             try {
@@ -232,19 +431,18 @@
                 alert("Bağlantı hatası");
             } finally {
                 btn.disabled = false;
-                btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> Görevi Başlat';
+                btn.innerHTML = '<span class="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center group-hover:rotate-90 transition duration-500"><i class="fa-solid fa-wand-magic-sparkles"></i></span><span class="text-lg">Oluştur</span>';
                 btn.classList.remove('opacity-75', 'cursor-not-allowed');
                 updateStatus(); 
             }
         }
 
         async function deleteTask(taskId) {
-            if(!confirm("Bu görevi silmek istediğinize emin misiniz?")) return;
-            
-            // UI'dan hemen kaldır (Optimistic UI)
+            // UI optimistic update
             const card = document.getElementById(`task-${taskId}`);
-            if(card) card.remove();
-            
+            if(card) card.style.opacity = '0';
+            setTimeout(() => { if(card) card.remove(); }, 300);
+
             try {
                 await fetch('/delete_task', {
                     method: 'POST',
@@ -254,86 +452,170 @@
             } catch(e) { console.error(e); }
         }
 
-        function getCardContentHTML(task) {
-            let statusColor = 'text-yellow-500';
-            let statusIcon = 'fa-clock';
-            let statusText = 'İşleniyor';
+        async function deleteAllTasks() {
+            if(!confirm("Tüm listeyi temizlemek istediğinize emin misiniz?")) return;
+            document.getElementById('taskList').innerHTML = '';
+            try { await fetch('/delete_all_tasks', {method: 'POST'}); } catch(e) {}
+        }
+
+        function getCardHTML(task) {
+            let statusConfig = { color: 'text-yellow-500', icon: 'fa-clock', text: 'İşleniyor', border: 'border-yellow-500/20' };
 
             if (task.status === 'completed') { 
-                statusColor = 'text-green-500'; 
-                statusIcon = 'fa-check-circle'; 
-                statusText = 'Tamamlandı';
+                statusConfig = { color: 'text-green-400', icon: 'fa-check-circle', text: 'Tamamlandı', border: 'border-green-500/30' };
             } else if (task.status === 'failed') { 
-                statusColor = 'text-red-500'; 
-                statusIcon = 'fa-times-circle'; 
-                statusText = 'Başarısız';
+                statusConfig = { color: 'text-red-500', icon: 'fa-circle-xmark', text: 'Hata', border: 'border-red-500/30' };
             } else if (task.status === 'waiting_confirmation') {
-                statusColor = 'text-orange-500'; 
-                statusIcon = 'fa-circle-question'; 
-                statusText = 'Onay Bekliyor';
+                statusConfig = { color: 'text-orange-400', icon: 'fa-triangle-exclamation', text: 'Onay Bekliyor', border: 'border-orange-500/50 animate-pulse' };
             }
 
-            const lastLog = task.logs.length > 0 ? task.logs[task.logs.length - 1] : "Başlatılıyor...";
-
-            let innerHtml = '';
+            const lastLog = task.logs.length > 0 ? task.logs[task.logs.length - 1] : "Kuyruğa alındı...";
+            
+            // Image Content
+            let mainContent = '';
             if (task.status === 'completed' && task.image_url) {
-                innerHtml = `
-                    <div class="aspect-[2/3] w-full bg-black rounded-lg overflow-hidden relative group mt-3 border border-gray-700">
-                        <img src="${task.image_url}" class="w-full h-full object-cover transition duration-500 group-hover:scale-105">
-                        <div class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-2 transition duration-300">
-                            <a href="${task.image_url}" target="_blank" class="bg-white text-black px-4 py-2 rounded-full text-xs font-bold hover:bg-gray-200 transition transform hover:scale-105">
-                                <i class="fa-solid fa-eye mr-1"></i> Aç
-                            </a>
-                            <a href="${task.image_url}" download class="bg-indigo-600 text-white px-4 py-2 rounded-full text-xs font-bold hover:bg-indigo-500 transition transform hover:scale-105">
-                                <i class="fa-solid fa-download mr-1"></i> İndir
+                mainContent = `
+                    <div class="relative aspect-[9/16] mt-3 rounded-lg overflow-hidden group/img border border-white/10 bg-black">
+                        <img src="${task.image_url}" class="w-full h-full object-cover transition duration-700 group-hover/img:scale-110">
+                        <div class="absolute inset-0 bg-black/60 opacity-0 group-hover/img:opacity-100 transition duration-300 flex flex-col items-center justify-center gap-3 backdrop-blur-sm">
+                            <button onclick="showLightbox('${task.image_url}')" class="bg-white text-black px-4 py-2 rounded-full text-xs font-bold hover:bg-indigo-50 hover:text-indigo-600 transition transform hover:scale-105 flex items-center gap-2">
+                                <i class="fa-solid fa-expand"></i> Görüntüle
+                            </button>
+                            <a href="${task.image_url}" download class="bg-indigo-600 text-white px-4 py-2 rounded-full text-xs font-bold hover:bg-indigo-500 transition transform hover:scale-105 flex items-center gap-2">
+                                <i class="fa-solid fa-download"></i> İndir
                             </a>
                         </div>
                     </div>
                 `;
             } else if (['running', 'pending', 'waiting_confirmation'].includes(task.status)) {
-                innerHtml = `
-                    <div class="aspect-[2/3] w-full bg-[#18181b] rounded-lg mt-3 flex flex-col items-center justify-center text-gray-500 border border-dashed border-gray-700 relative overflow-hidden">
-                        <div class="absolute inset-0 bg-gradient-to-b from-transparent to-black/20"></div>
-                        <i class="fa-solid fa-robot text-3xl mb-3 text-indigo-500/50 animate-bounce"></i>
-                        <div class="w-3/4 h-1 bg-gray-800 rounded-full overflow-hidden">
-                            <div class="h-full bg-indigo-500 w-1/2 animate-[shimmer_2s_infinite]"></div>
-                        </div>
-                        <span class="text-[10px] text-gray-400 mt-2 font-mono">AI Çiziyor...</span>
+                mainContent = `
+                    <div class="aspect-[9/16] mt-3 rounded-lg border border-dashed border-gray-700 bg-black/20 flex flex-col items-center justify-center relative overflow-hidden">
+                        <div class="absolute inset-0 bg-gradient-to-t from-indigo-500/5 to-transparent animate-pulse"></div>
+                        <i class="fa-solid fa-circle-notch fa-spin text-2xl text-indigo-500 mb-2"></i>
+                        <span class="text-[10px] text-indigo-300 font-mono tracking-widest uppercase">AI Üretiyor</span>
                     </div>
                 `;
             } else {
-                 innerHtml = `
-                    <div class="aspect-[2/3] w-full bg-[#18181b]/50 rounded-lg mt-3 flex flex-col items-center justify-center text-red-500 border border-red-900/20">
-                        <i class="fa-solid fa-triangle-exclamation text-3xl mb-2"></i>
-                        <span class="text-xs font-bold">Hata Oluştu</span>
+                 mainContent = `
+                    <div class="aspect-[9/16] mt-3 rounded-lg border border-red-900/30 bg-red-900/5 flex flex-col items-center justify-center text-red-400">
+                        <i class="fa-solid fa-bug text-3xl mb-2"></i>
+                        <span class="text-[10px] font-bold">İşlem Başarısız</span>
                     </div>
                 `;
             }
 
             return `
-                <button onclick="deleteTask('${task.id}')" class="absolute top-2 right-2 text-gray-600 hover:text-red-500 hover:bg-gray-800 rounded-full w-6 h-6 flex items-center justify-center transition z-10">
-                    <i class="fa-solid fa-xmark text-xs"></i>
-                </button>
-
-                <div class="flex justify-between items-start mb-1 pr-6">
+                <div class="flex justify-between items-start relative z-10">
                     <div>
-                        <span class="text-[9px] text-gray-500 uppercase tracking-widest font-bold bg-black/40 px-1.5 py-0.5 rounded">ID: ${task.id.substring(0,6)}</span>
-                        <h3 class="text-sm text-gray-200 font-bold mt-1 truncate w-40" title="${task.params.prompt}">${task.params.prompt}</h3>
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="text-[9px] font-black bg-white/10 text-gray-400 px-1.5 py-0.5 rounded tracking-widest">${task.mode === 'Text-to-Image' ? 'TXT' : 'IMG'}</span>
+                            <span class="text-[9px] font-mono text-gray-500">#${task.id.substring(0,5)}</span>
+                        </div>
                     </div>
-                    <div class="${statusColor} flex flex-col items-end">
-                        <i class="fa-solid ${statusIcon} text-lg"></i>
-                        <span class="text-[9px] font-bold uppercase mt-1 opacity-80">${statusText}</span>
+                    
+                    <!-- X Button Adjusted: Absolute top right outside flow issues -->
+                    <button onclick="deleteTask('${task.id}')" class="text-gray-600 hover:text-red-500 transition p-1 hover:bg-white/5 rounded-md -mr-2 -mt-2">
+                        <i class="fa-solid fa-xmark text-sm"></i>
+                    </button>
+                </div>
+
+                <div class="flex justify-between items-end mb-2 mt-1">
+                     <button onclick="showPromptModal('${task.params.prompt.replace(/'/g, "\\'")}')" class="text-left group/info">
+                        <h3 class="text-xs text-gray-200 font-bold line-clamp-1 w-32 group-hover/info:text-indigo-400 transition">${task.params.prompt}</h3>
+                        <div class="flex items-center gap-1 text-[9px] text-gray-500 group-hover/info:text-indigo-500/70">
+                            <i class="fa-solid fa-circle-info"></i> Tamamını gör
+                        </div>
+                    </button>
+                    <div class="${statusConfig.color} flex flex-col items-end text-right">
+                        <span class="text-[9px] font-black uppercase tracking-wider">${statusConfig.text}</span>
                     </div>
                 </div>
+
+                ${mainContent}
                 
-                ${innerHtml}
-                
-                <div class="mt-3 bg-black/40 p-2 rounded border border-white/5">
-                    <p class="text-[10px] text-gray-400 font-mono truncate">
-                        <span class="text-indigo-400 mr-1">></span> ${lastLog}
-                    </p>
+                <div class="mt-3 bg-black/40 p-2.5 rounded border border-white/5 font-mono text-[9px] text-gray-500 truncate relative">
+                    <span class="text-indigo-500 mr-1">$</span> ${lastLog}
                 </div>
             `;
+        }
+
+        async function updateStatus() {
+            document.getElementById('loadingIndicator').classList.remove('opacity-0');
+            try {
+                const res = await fetch('/status');
+                const data = await res.json();
+
+                // State
+                document.getElementById('account-count-badge').innerText = `${data.account_count} Hesap`;
+                document.getElementById('active-user').innerText = data.active_account;
+                document.getElementById('active-quota').innerText = data.active_quota;
+
+                // Modal Check
+                const waitingTask = data.tasks.find(t => t.status === 'waiting_confirmation');
+                if (waitingTask && !currentConfirmTaskId) {
+                    currentConfirmTaskId = waitingTask.id;
+                    document.getElementById('confirmModal').classList.remove('hidden');
+                }
+
+                // Render
+                const container = document.getElementById('taskList');
+                
+                if (data.tasks.length === 0) {
+                    container.innerHTML = `
+                        <div class="col-span-full flex flex-col items-center justify-center text-gray-700 mt-20 opacity-50">
+                            <i class="fa-brands fa-space-awesome text-5xl mb-4"></i>
+                            <p class="text-sm">Henüz bir işlem yok.</p>
+                        </div>`;
+                } else {
+                    const existingIds = new Set(Array.from(container.children).map(el => el.id.replace('task-', '')));
+                    const newIds = new Set(data.tasks.map(t => t.id));
+
+                    Array.from(container.children).forEach(el => {
+                        const id = el.id.replace('task-', '');
+                        if(!newIds.has(id)) el.remove();
+                    });
+                    
+                    if(existingIds.size === 0 && data.tasks.length > 0 && container.querySelector('.fa-space-awesome')) container.innerHTML = '';
+
+                    data.tasks.forEach(task => {
+                        const cardId = `task-${task.id}`;
+                        const existingCard = document.getElementById(cardId);
+                        const newContent = getCardHTML(task);
+                        
+                        let borderClass = 'border-gray-800';
+                        if(task.status === 'completed') borderClass = 'border-green-500/20 shadow-green-900/10';
+                        if(task.status === 'failed') borderClass = 'border-red-500/20 shadow-red-900/10';
+                        if(task.status === 'waiting_confirmation') borderClass = 'border-orange-500/40 shadow-orange-900/20';
+
+                        const wrapperClass = `task-card-enter bg-[#131315] p-5 rounded-2xl border ${borderClass} shadow-xl hover:shadow-2xl hover:border-white/10 transition duration-300 flex flex-col relative group`;
+
+                        if(existingCard) {
+                            if(existingCard.dataset.status !== task.status || existingCard.dataset.logCount != task.logs.length) {
+                                existingCard.innerHTML = newContent;
+                                existingCard.className = wrapperClass;
+                                existingCard.dataset.status = task.status;
+                                existingCard.dataset.logCount = task.logs.length;
+                            }
+                        } else {
+                            const div = document.createElement('div');
+                            div.id = cardId;
+                            div.className = wrapperClass;
+                            div.dataset.status = task.status;
+                            div.dataset.logCount = task.logs.length;
+                            div.innerHTML = newContent;
+                            
+                            if(container.querySelector('.fa-space-awesome')) container.innerHTML = '';
+                            
+                            // Insert at correct position based on sort
+                            // Backend sends sorted by newest first.
+                            // Simply appending works if list is rebuilt, but for live updates with prepend logic:
+                            if(container.firstChild) container.insertBefore(div, container.firstChild);
+                            else container.appendChild(div);
+                        }
+                    });
+                }
+            } catch(e) { console.error(e); }
+            setTimeout(() => document.getElementById('loadingIndicator').classList.add('opacity-0'), 500);
         }
 
         async function respondToSwitch(isApproved) {
@@ -346,96 +628,9 @@
                     method: 'POST', headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ task_id: currentConfirmTaskId, action: action })
                 });
-                updateStatus();
-            } catch (e) { console.error(e); }
+            } catch (e) { }
             currentConfirmTaskId = null;
-        }
-
-        async function updateStatus() {
-            try {
-                const res = await fetch('/status');
-                const data = await res.json();
-
-                // 1. Hesap Bilgileri
-                document.getElementById('account-status').innerText = data.account_count > 0 ? "Aktif" : "Yüklü Değil";
-                document.getElementById('account-count-badge').innerText = `${data.account_count} Hesap`;
-                document.getElementById('account-status').className = data.account_count > 0 ? "text-green-500 font-bold" : "text-gray-500";
-                document.getElementById('active-user').innerText = data.active_account;
-                document.getElementById('active-quota').innerText = data.active_quota;
-
-                // 2. Modal Kontrol
-                const waitingTask = data.tasks.find(t => t.status === 'waiting_confirmation');
-                if (waitingTask && !currentConfirmTaskId) {
-                    currentConfirmTaskId = waitingTask.id;
-                    document.getElementById('confirmModal').classList.remove('hidden');
-                }
-
-                // 3. Akıllı Liste Güncelleme (No-Jitter)
-                const container = document.getElementById('taskList');
-                
-                if (data.tasks.length === 0) {
-                    container.innerHTML = `
-                        <div class="col-span-full flex flex-col items-center justify-center text-gray-600 mt-20 p-10 border-2 border-dashed border-gray-800 rounded-2xl">
-                            <div class="w-16 h-16 bg-gray-800 rounded-full flex items-center justify-center mb-4">
-                                <i class="fa-solid fa-layer-group text-2xl opacity-50"></i>
-                            </div>
-                            <h3 class="text-lg font-bold text-gray-400">Liste Boş</h3>
-                            <p class="text-xs mt-1">Sol taraftan yeni bir işlem başlatın.</p>
-                        </div>`;
-                } else {
-                    // Mevcut DOM'daki ID'leri al
-                    const existingIds = new Set(Array.from(container.children).map(el => el.id.replace('task-', '')));
-                    const newIds = new Set(data.tasks.map(t => t.id));
-
-                    // a. Silinenleri kaldır
-                    Array.from(container.children).forEach(el => {
-                        const id = el.id.replace('task-', '');
-                        if(!newIds.has(id) && el.tagName === 'DIV') el.remove();
-                    });
-                    
-                    // Boş placeholder'ı temizle (liste dolduysa)
-                    if (existingIds.size === 0 && data.tasks.length > 0) container.innerHTML = '';
-
-                    // b. Ekle veya Güncelle
-                    data.tasks.forEach(task => {
-                        const cardId = `task-${task.id}`;
-                        const existingCard = document.getElementById(cardId);
-                        const newContent = getCardContentHTML(task);
-                        
-                        let borderClass = 'border-gray-800';
-                        if(task.status === 'completed') borderClass = 'border-green-900/30';
-                        if(task.status === 'failed') borderClass = 'border-red-900/30';
-                        if(task.status === 'waiting_confirmation') borderClass = 'border-orange-900/30 animate-pulse';
-
-                        if(existingCard) {
-                            // Sadece değişiklik varsa güncelle
-                            if(existingCard.dataset.status !== task.status || existingCard.dataset.logCount != task.logs.length) {
-                                existingCard.innerHTML = newContent;
-                                existingCard.className = `task-card bg-[#18181b] p-4 rounded-xl border ${borderClass} shadow-xl hover:shadow-2xl hover:border-gray-700 transition flex flex-col relative group`;
-                                existingCard.dataset.status = task.status;
-                                existingCard.dataset.logCount = task.logs.length;
-                            }
-                        } else {
-                            // Yeni kart ekle
-                            const div = document.createElement('div');
-                            div.id = cardId;
-                            div.className = `task-card-enter task-card bg-[#18181b] p-4 rounded-xl border ${borderClass} shadow-xl hover:shadow-2xl hover:border-gray-700 transition flex flex-col relative group`;
-                            div.dataset.status = task.status;
-                            div.dataset.logCount = task.logs.length;
-                            div.innerHTML = newContent;
-                            container.appendChild(div); // Sıralama backend'den geliyor ama append sona ekler. 
-                            // Not: Backend reverse sort yolluyor. Eğer liste boşken dolduruyorsak sorun yok.
-                            // Canlı eklemede en başa eklemek gerekebilir:
-                            // container.prepend(div); -> Fakat bu tüm listeyi kaydırır.
-                            // Mevcut logic ile append çalışır ama sıralama karışabilir. 
-                            // Basit çözüm: Eğer container.children.length > 0 ise prepend, değilse append.
-                            if(container.firstChild) container.insertBefore(div, container.firstChild);
-                            else container.appendChild(div);
-                        }
-                    });
-                }
-
-            } catch(e) { console.error("Update error", e); }
+            updateStatus();
         }
 
         setInterval(updateStatus, 2000);
