@@ -30,7 +30,7 @@
 <body class="w-full bg-[#050505] text-[#e2e8f0] overflow-x-hidden">
 
     <!-- LANDING PAGE (Login olmadan) -->
-    <div id="landingPage" class="min-h-screen flex items-center justify-center relative overflow-hidden">
+    <div id="landingPage" class="min-h-screen flex items-center justify-center relative overflow-hidden hidden">
         <!-- Background decorations -->
         <div class="absolute inset-0 overflow-hidden pointer-events-none">
             <div class="absolute top-[-20%] left-[-10%] w-[60%] h-[60%] bg-indigo-900/20 rounded-full blur-[150px]"></div>
@@ -39,11 +39,11 @@
         
         <div class="relative z-10 text-center px-6 max-w-2xl">
             <div class="mb-8">
-                <i class="fa-solid fa-bolt text-indigo-500 text-6xl mb-6 inline-block animate-pulse"></i>
-                <h1 class="text-6xl font-black bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-transparent bg-clip-text mb-4 tracking-tight">
+                <i class="fa-solid fa-bolt text-indigo-500 text-4xl md:text-5xl lg:text-6xl mb-4 md:mb-6 inline-block animate-pulse"></i>
+                <h1 class="text-4xl md:text-5xl lg:text-6xl font-black bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-transparent bg-clip-text mb-4 tracking-tight">
                     NANOBANANA PRO
                 </h1>
-                <p class="text-gray-400 text-lg mb-8">
+                <p class="text-gray-400 text-sm md:text-base lg:text-lg mb-8">
                     Yapay zeka destekli görsel üretim platformu. Hayal gücünüzü gerçeğe dönüştürün.
                 </p>
             </div>
@@ -197,8 +197,10 @@
                 <!-- Prompt -->
                 <div class="relative">
                     <label class="text-[10px] font-bold text-gray-500 uppercase mb-2 block tracking-widest">Prompt</label>
-                    <textarea name="prompt" rows="4" class="w-full bg-[#131315] border border-white/10 rounded-xl p-4 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none resize-none text-gray-200 placeholder-gray-700 transition" placeholder="Hayalinizdeki sahneyi detaylıca anlatın..."></textarea>
-                    <div class="absolute bottom-3 right-3 text-[10px] text-gray-600 bg-black/50 px-2 py-1 rounded border border-white/5 pointer-events-none">TR/EN</div>
+                    <textarea name="prompt" id="mainPromptField" rows="4" class="w-full bg-[#131315] border border-white/10 rounded-xl p-4 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none resize-none text-gray-200 placeholder-gray-700 transition pr-12" placeholder="Hayalinizdeki sahneyi detaylıca anlatın..."></textarea>
+                    <button type="button" onclick="quickSavePrompt()" class="absolute bottom-3 right-3 text-indigo-500 hover:text-indigo-400 bg-indigo-500/10 hover:bg-indigo-500/20 w-8 h-8 flex items-center justify-center rounded-lg transition" title="Promptu kaydet">
+                        <i class="fa-solid fa-plus text-sm"></i>
+                    </button>
                 </div>
 
                 <!-- Settings Grid -->
@@ -303,13 +305,7 @@
         <!-- FAVORITES SECTION (Right Panel) -->
         <div id="favoritesSection" class="hidden flex-1 p-8 md:overflow-y-auto custom-scroll">
             <div class="max-w-6xl mx-auto">
-                <!-- Add to Favorites Form -->
-                <div class="bg-[#131315] rounded-xl border border-white/5 p-6 mb-6">
-                    <h3 class="text-sm font-bold text-gray-300 mb-3"><i class="fa-solid fa-heart text-red-500 mr-2"></i>Favorilerim</h3>
-                    <p class="text-xs text-gray-500">Tamamlanan görevlerden favorilere ekleyebilirsiniz.</p>
-                </div>
-                
-                <div id="favoritesGrid" class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
+                <div id="favoritesGrid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6">
                     <!-- Favorites will be injected here -->
                 </div>
                 
@@ -391,6 +387,24 @@
             <button onclick="copyModalPrompt()" id="copyBtn" class="w-full bg-gray-700 hover:bg-gray-600 text-white py-3 rounded-xl font-bold transition flex items-center justify-center gap-2">
                 <i class="fa-regular fa-copy"></i> <span>Kopyala</span>
             </button>
+        </div>
+    </div>
+
+    <!-- EDIT PROMPT MODAL -->
+    <div id="editPromptModal" class="fixed inset-0 z-[60] bg-black/80 hidden flex items-center justify-center backdrop-blur-md opacity-0 transition-opacity duration-300">
+        <div class="bg-[#18181b] border border-gray-700 rounded-2xl p-6 max-w-lg w-full shadow-2xl transform scale-95 transition-transform duration-300 relative mx-4">
+            <button onclick="closeModal('editPromptModal')" class="absolute top-4 right-4 text-gray-500 hover:text-white transition"><i class="fa-solid fa-xmark text-lg"></i></button>
+            <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2"><i class="fa-solid fa-pen text-indigo-500"></i> Prompt Düzenle</h3>
+            <div class="space-y-3">
+                <input type="text" id="editPromptTitle" placeholder="Başlık..." class="w-full bg-[#09090b] border border-white/10 rounded-lg p-3 text-sm focus:border-indigo-500 outline-none text-gray-200">
+                <textarea id="editPromptText" rows="6" placeholder="Prompt metni..." class="w-full bg-[#09090b] border border-white/10 rounded-lg p-3 text-sm focus:border-indigo-500 outline-none resize-none text-gray-200"></textarea>
+                <div class="flex gap-2">
+                    <button onclick="closeModal('editPromptModal')" class="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-3 rounded-xl text-sm font-bold transition">İptal</button>
+                    <button onclick="saveEditedPrompt()" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white py-3 rounded-xl text-sm font-bold transition">
+                        <i class="fa-solid fa-save mr-2"></i> Kaydet
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -903,7 +917,12 @@
             // Explicitly show/hide sections based on current section
             if(section === 'create') {
                 taskList.classList.remove('hidden');
-                taskPagination.classList.remove('hidden');
+                // Only show pagination if there are more than TASKS_PER_PAGE tasks
+                if(allTasks.length > TASKS_PER_PAGE) {
+                    taskPagination.classList.remove('hidden');
+                } else {
+                    taskPagination.classList.add('hidden');
+                }
                 favoritesSection.classList.add('hidden');
                 promptsSection.classList.add('hidden');
             } else if(section === 'favorites') {
@@ -982,10 +1001,10 @@
                 
                 const grid = document.getElementById('favoritesGrid');
                 if(pageFavs.length === 0) {
-                    grid.innerHTML = '<div class="col-span-full text-center text-gray-500 py-20"><i class="fa-solid fa-heart-crack text-4xl mb-3 block opacity-50"></i><p class="text-sm">Henüz favori eklenmedi</p></div>';
+                    grid.innerHTML = '<div class="col-span-full flex flex-col items-center justify-center text-gray-500 py-20"><i class="fa-solid fa-heart-crack text-4xl mb-3 opacity-50"></i><p class="text-sm">Henüz favori eklenmedi</p></div>';
                 } else {
                     grid.innerHTML = pageFavs.map(fav => `
-                        <div class="bg-[#131315] p-5 rounded-2xl border border-gray-800 shadow-xl hover:shadow-2xl hover:border-white/10 transition duration-300 flex flex-col relative group">
+                        <div class="task-card-enter bg-[#131315] p-5 rounded-2xl border border-gray-800 shadow-xl hover:shadow-2xl hover:border-white/10 transition duration-300 flex flex-col relative group">
                             <div class="flex justify-between items-start relative z-10 mb-1">
                                 <div>
                                     <div class="flex items-center gap-2">
@@ -1000,7 +1019,7 @@
                             </div>
 
                             <div class="flex justify-between items-end mb-2 mt-1">
-                                <button onclick="showPromptModal('${fav.prompt.replace(/'/g, "\\'")}')}" class="text-left group/info">
+                                <button onclick="showPromptModal('${fav.prompt.replace(/'/g, "\\'")}')" class="text-left group/info">
                                     <h3 class="text-xs text-gray-200 font-bold line-clamp-1 w-32 group-hover/info:text-indigo-400 transition">${fav.prompt}</h3>
                                     <div class="flex items-center gap-1 text-[9px] text-gray-500 group-hover/info:text-indigo-500/70">
                                         <i class="fa-solid fa-circle-info"></i> Tamamını gör
@@ -1093,7 +1112,7 @@
                 
                 const list = document.getElementById('promptsList');
                 if(pagePrompts.length === 0) {
-                    list.innerHTML = '<div class="text-center text-gray-500 py-20"><i class="fa-solid fa-inbox text-4xl mb-3 block opacity-50"></i><p class="text-sm">Henüz kayıtlı prompt yok</p></div>';
+                    list.innerHTML = '<div class="flex flex-col items-center justify-center text-gray-500 py-20"><i class="fa-solid fa-inbox text-4xl mb-3 opacity-50"></i><p class="text-sm">Henüz kayıtlı prompt yok</p></div>';
                 } else {
                     list.innerHTML = pagePrompts.map((p, i) => {
                         const globalIndex = start + i;
@@ -1107,6 +1126,9 @@
                                     </button>
                                     <button onclick="copyPromptText(\`${p.text.replace(/`/g, '\\`')}\`)" class="text-gray-500 hover:text-indigo-400 text-xs px-2 py-1 hover:bg-indigo-500/10 rounded transition" title="Kopyala">
                                         <i class="fa-regular fa-copy"></i>
+                                    </button>
+                                    <button onclick="editPromptByIndex(${globalIndex})" class="text-gray-500 hover:text-yellow-400 text-xs px-2 py-1 hover:bg-yellow-500/10 rounded transition" title="Düzenle">
+                                        <i class="fa-solid fa-pen"></i>
                                     </button>
                                     <button onclick="deletePromptByIndex(${globalIndex})" class="text-gray-500 hover:text-red-400 text-xs px-2 py-1 hover:bg-red-500/10 rounded transition" title="Sil">
                                         <i class="fa-solid fa-trash"></i>
@@ -1213,6 +1235,91 @@
             }
         }
 
+        // Quick save prompt from main creation area
+        async function quickSavePrompt() {
+            const promptField = document.getElementById('mainPromptField');
+            const text = promptField.value.trim();
+            
+            if(!text) {
+                alert('Prompt boş olamaz!');
+                return;
+            }
+            
+            // Auto-generate sequential title (Prompt 1, Prompt 2, etc.)
+            // Find the highest number in existing "Prompt X" titles
+            let maxNum = 0;
+            const prompts = await fetch('/get_prompts').then(r => r.json()).then(d => d.prompts || []);
+            prompts.forEach(p => {
+                const match = p.title.match(/^Prompt (\d+)$/);
+                if (match) {
+                    maxNum = Math.max(maxNum, parseInt(match[1]));
+                }
+            });
+            const title = `Prompt ${maxNum + 1}`;
+            
+            try {
+                await fetch('/add_prompt', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ title, text })
+                });
+                
+                alert('Prompt kaydedildi!');
+                loadPrompts();
+            } catch(e) {
+                alert('Hata: ' + e);
+            }
+        }
+
+        // Edit prompt
+        let currentEditIndex = null;
+        async function editPromptByIndex(index) {
+            try {
+                const res = await fetch('/get_prompts');
+                const data = await res.json();
+                const prompts = data.prompts || [];
+                
+                if (index >= 0 && index < prompts.length) {
+                    currentEditIndex = index;
+                    document.getElementById('editPromptTitle').value = prompts[index].title;
+                    document.getElementById('editPromptText').value = prompts[index].text;
+                    
+                    const modal = document.getElementById('editPromptModal');
+                    modal.classList.remove('hidden');
+                    setTimeout(() => {
+                        modal.classList.remove('opacity-0');
+                        modal.children[0].classList.remove('scale-95');
+                        modal.children[0].classList.add('scale-100');
+                    }, 10);
+                }
+            } catch(e) {
+                console.error(e);
+            }
+        }
+
+        async function saveEditedPrompt() {
+            const title = document.getElementById('editPromptTitle').value.trim();
+            const text = document.getElementById('editPromptText').value.trim();
+            
+            if (!title || !text) {
+                alert('Başlık ve metin boş olamaz!');
+                return;
+            }
+            
+            try {
+                await fetch('/edit_prompt', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ index: currentEditIndex, title, text })
+                });
+                
+                closeModal('editPromptModal');
+                loadPrompts();
+            } catch(e) {
+                alert('Hata: ' + e);
+            }
+        }
+
         // --- Task Pagination ---
         function changeTaskPage(delta) {
             const totalPages = Math.ceil(allTasks.length / TASKS_PER_PAGE) || 1;
@@ -1230,8 +1337,8 @@
             
             if (allTasks.length === 0) {
                 container.innerHTML = `
-                    <div class="col-span-full flex flex-col items-center justify-center text-gray-700 mt-20 opacity-50">
-                        <i class="fa-brands fa-space-awesome text-5xl mb-4"></i>
+                    <div class="col-span-full flex flex-col items-center justify-center text-gray-500 mt-20">
+                        <i class="fa-solid fa-clipboard-list text-4xl mb-3 opacity-50"></i>
                         <p class="text-sm">Henüz bir işlem yok.</p>
                     </div>`;
                 if(currentSection === 'create') {
@@ -1244,8 +1351,8 @@
                         document.getElementById('taskPagination').classList.add('hidden');
                     } else {
                         document.getElementById('taskPagination').classList.remove('hidden');
+                        document.getElementById('taskPageInfo').textContent = `${currentTaskPage} / ${totalPages}`;
                     }
-                    document.getElementById('taskPageInfo').textContent = `${currentTaskPage} / ${totalPages}`;
                 }
                 
                 // Update container with current page tasks
