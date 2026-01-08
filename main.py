@@ -375,7 +375,6 @@ def process_video_task_thread(task_id, file_paths, form_data):
     
     log_msg("Video oluşturma başlatılıyor...")
     
-    # Debug: Log form data
     print(f"[VIDEO DEBUG] Task ID: {task_id}")
     print(f"[VIDEO DEBUG] File paths: {file_paths}")
     print(f"[VIDEO DEBUG] Form data: {form_data}")
@@ -383,40 +382,13 @@ def process_video_task_thread(task_id, file_paths, form_data):
     try:
         token = login_and_get_token()
         
-        # Upload the image first
+        # Dosya kontrolü
         if not file_paths:
             log_msg("Video için görsel gerekli!")
             STATE['tasks'][task_id]['status'] = 'failed'
             return
             
-        file_path = file_paths[0]  # Use first image for video
-        log_msg("Görsel yükleniyor...")
-        
-        upload_headers = {
-            "authorization": "Bearer " + token,
-            "x-device": "TABLET",
-            "x-device-id": "3401879229",
-            "x-os": "WINDOWS",
-            "x-platform": "WEB"
-        }
-        
-        try:
-            with open(file_path, "rb") as f:
-                files = {"file": (os.path.basename(file_path), f, "image/png")}
-                upload_data = {"width": "1024", "height": "1536"}
-                resp_upload = requests.post(URL_UPLOAD, headers=upload_headers, files=files, data=upload_data)
-            
-            if resp_upload.status_code not in [200, 201]:
-                log_msg(f"Upload hatası: {resp_upload.status_code}")
-                STATE['tasks'][task_id]['status'] = 'failed'
-                return
-                
-            image_id = resp_upload.json()['data']['data']['id']
-            log_msg(f"Görsel yüklendi. ID: {image_id}")
-        except Exception as ex:
-            log_msg(f"Dosya yükleme hatası: {str(ex)}")
-            STATE['tasks'][task_id]['status'] = 'failed'
-            return
+        file_path = file_paths[0]
         
         # Get video options from form
         ai_prompt_enhance = form_data.get('ai_prompt', 'on') == 'on'
@@ -435,8 +407,36 @@ def process_video_task_thread(task_id, file_paths, form_data):
                 if task_id in STATE['tasks']: STATE['tasks'][task_id]['status'] = 'failed'
                 return
 
+            # HER HESAP İÇİN UPLOAD YAP
+            log_msg(f"Görsel yükleniyor... ({acc['email']})")
+            
+            upload_headers = {
+                "authorization": "Bearer " + token,
+                "x-device": "TABLET",
+                "x-device-id": "3401879229",
+                "x-os": "WINDOWS",
+                "x-platform": "WEB"
+            }
+            
+            try:
+                with open(file_path, "rb") as f:
+                    files = {"file": (os.path.basename(file_path), f, "image/png")}
+                    upload_data = {"width": "1024", "height": "1536"}
+                    resp_upload = requests.post(URL_UPLOAD, headers=upload_headers, files=files, data=upload_data)
+                
+                if resp_upload.status_code not in [200, 201]:
+                    log_msg(f"Upload hatası: {resp_upload.status_code}")
+                    STATE['tasks'][task_id]['status'] = 'failed'
+                    return
+                    
+                image_id = resp_upload.json()['data']['data']['id']
+                log_msg(f"Görsel yüklendi. ID: {image_id}")
+            except Exception as ex:
+                log_msg(f"Dosya yükleme hatası: {str(ex)}")
+                STATE['tasks'][task_id]['status'] = 'failed'
+                return
+
             log_msg(f"Video görevi gönderiliyor... ({acc['email']})")
-            token = login_and_get_token() # Her döngüde token'ı yenile
             
             submit_headers = {
                 "authorization": "Bearer " + token,
@@ -515,12 +515,85 @@ def process_video_task_thread(task_id, file_paths, form_data):
                             return
                 else:
                     target_task_id = resp_json.get('data', {}).get('data', {}).get('taskId')
+                    log_msg(f"ID: {target_task_id}")
                     print(f"[VIDEO DEBUG] Target task ID: {target_task_id}")
+                    refresh_quota(token)
                     break
             except Exception as e:
                 log_msg(f"Submit hatası: {str(e)}")
                 if task_id in STATE['tasks']: STATE['tasks'][task_id]['status'] = 'failed'
                 return
+        
+        log_msg("Video işleniyor...")
+        
+        # Poll for video completion
+        attempt = 0
+        while attempt < 9000:
+            if task_id not in STATE['tasks']: return
+            attempt += 1
+            time.sleep(2)
+            
+            try:
+                resp_poll = requests.get(URL_VIDEO_TASKS, headers=upload_headers)
+                json_data = resp_poll.json()
+                
+                if attempt == 1:
+                    print(f"[VIDEO DEBUG] First poll response structure: {str(json_data)[:500]}")
+                
+                video_list = None
+                
+                if json_data.get('data', {}).get('data', {}).get('data'):
+                    video_list = json_data['data']['data']['data']
+                elif isinstance(json_data.get('data', {}).get('data'), list):
+                    video_list = json_data['data']['data']
+                elif isinstance(json_data.get('data'), list):
+                    video_list = json_data['data']
+                
+                if video_list:
+                    target_video = None
+                    for video in video_list:
+                        if target_task_id and video.get('taskId') == target_task_id:
+                            target_video = video
+                            break
+                    
+                    if target_video:
+                        video_state = target_video.get('taskState', '')
+                        video_url = target_video.get('noWaterMarkVideoUrl')
+                        
+                        if attempt <= 3:
+                            print(f"[VIDEO DEBUG] Video state: {video_state}, URL: {video_url}")
+                        
+                        if video_state == 'FAIL':
+                            log_msg("Video oluşturma başarısız!")
+                            STATE['tasks'][task_id]['status'] = 'failed'
+                            refresh_quota(token)
+                            return
+                        
+                        if video_url:
+                            STATE['tasks'][task_id]['video_url'] = video_url
+                            if not STATE['tasks'][task_id].get('image_url'):
+                                thumb = target_video.get('imageUrl') or target_video.get('thumbnailUrl') or target_video.get('videoCoverUrl')
+                                if thumb:
+                                    STATE['tasks'][task_id]['image_url'] = thumb
+                            
+                            STATE['tasks'][task_id]['status'] = 'completed'
+                            log_msg("Video tamamlandı!")
+                            refresh_quota(token)
+                            return
+            except Exception as e:
+                if attempt <= 3:
+                    print(f"[VIDEO DEBUG] Poll error: {str(e)}")
+            
+            if attempt % 10 == 0:
+                log_msg(f"Video işleniyor... ({attempt*2}s)")
+        
+        log_msg("Video zaman aşımı.")
+        STATE['tasks'][task_id]['status'] = 'failed'
+        refresh_quota(token)
+
+    except Exception as e:
+        log_msg(f"Kritik Hata: {str(e)}")
+        if task_id in STATE['tasks']: STATE['tasks'][task_id]['status'] = 'failed'
         
         log_msg("Video işleniyor...")
         
