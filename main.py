@@ -11,7 +11,7 @@ import google.generativeai as genai
 app = Flask(__name__)
 
 # --- Gemini API Configuration ---
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GEMINI_API_KEY = "AIzaSyAezMTS5Sbvt4NXUJe8MyNi0lJd9rUSYUs"
 genai.configure(api_key=GEMINI_API_KEY)
 gemini_model = genai.GenerativeModel('gemini-2.5-flash')
 app.secret_key = 'nano-banana-pro-secret-key-2024'  # Session için secret key
@@ -39,6 +39,8 @@ URL_UPLOAD = "https://api.deevid.ai/file-upload/image"
 URL_SUBMIT = "https://api.deevid.ai/text-to-image/task/submit"
 URL_ASSETS = "https://api.deevid.ai/my-assets?limit=50&assetType=All&filter=CREATION"
 URL_QUOTA = "https://api.deevid.ai/subscription/plan"
+URL_VIDEO_SUBMIT = "https://api.deevid.ai/image-to-video/task/submit"
+URL_VIDEO_TASKS = "https://api.deevid.ai/video/tasks?page=1&size=20"
 
 # --- Account File Management ---
 
@@ -248,7 +250,7 @@ def process_task_thread(task_id, file_paths, form_data):
             MODEL_TYPE = "MODEL_FOUR"
             
             payload = {
-                "prompt": form_data.get('prompt', 'odada oturuyor olsun.'),
+                "prompt": form_data.get('prompt', ''),
                 "imageSize": form_data.get('image_size'),
                 "count": 1,
                 "resolution": form_data.get('resolution'),
@@ -361,6 +363,236 @@ def process_task_thread(task_id, file_paths, form_data):
         log_msg(f"Kritik Hata: {str(e)}")
         if task_id in STATE['tasks']: STATE['tasks'][task_id]['status'] = 'failed'
 
+
+def process_video_task_thread(task_id, file_paths, form_data):
+    """Video task processing thread (Image-to-Video)"""
+    if task_id not in STATE['tasks']: return
+
+    log_msg = lambda m: STATE['tasks'][task_id]['logs'].append(m) if task_id in STATE['tasks'] else None
+    
+    if task_id in STATE['tasks']:
+        STATE['tasks'][task_id]['status'] = 'running'
+    
+    log_msg("Video oluşturma başlatılıyor...")
+    
+    # Debug: Log form data
+    print(f"[VIDEO DEBUG] Task ID: {task_id}")
+    print(f"[VIDEO DEBUG] File paths: {file_paths}")
+    print(f"[VIDEO DEBUG] Form data: {form_data}")
+
+    try:
+        token = login_and_get_token()
+        
+        # Upload the image first
+        if not file_paths:
+            log_msg("Video için görsel gerekli!")
+            STATE['tasks'][task_id]['status'] = 'failed'
+            return
+            
+        file_path = file_paths[0]  # Use first image for video
+        log_msg("Görsel yükleniyor...")
+        
+        upload_headers = {
+            "authorization": "Bearer " + token,
+            "x-device": "TABLET",
+            "x-device-id": "3401879229",
+            "x-os": "WINDOWS",
+            "x-platform": "WEB"
+        }
+        
+        try:
+            with open(file_path, "rb") as f:
+                files = {"file": (os.path.basename(file_path), f, "image/png")}
+                upload_data = {"width": "1024", "height": "1536"}
+                resp_upload = requests.post(URL_UPLOAD, headers=upload_headers, files=files, data=upload_data)
+            
+            if resp_upload.status_code not in [200, 201]:
+                log_msg(f"Upload hatası: {resp_upload.status_code}")
+                STATE['tasks'][task_id]['status'] = 'failed'
+                return
+                
+            image_id = resp_upload.json()['data']['data']['id']
+            log_msg(f"Görsel yüklendi. ID: {image_id}")
+        except Exception as ex:
+            log_msg(f"Dosya yükleme hatası: {str(ex)}")
+            STATE['tasks'][task_id]['status'] = 'failed'
+            return
+        
+        # Get video options from form
+        ai_prompt_enhance = form_data.get('ai_prompt', 'on') == 'on'
+        generate_audio = form_data.get('audio', 'on') == 'on'
+        prompt = form_data.get('prompt', '')
+        
+        target_task_id = None
+        
+        # Submit Loop
+        while True:
+            if task_id not in STATE['tasks']: return 
+            
+            acc = get_current_account()
+            if not acc:
+                log_msg("Hesap kalmadı!")
+                if task_id in STATE['tasks']: STATE['tasks'][task_id]['status'] = 'failed'
+                return
+
+            log_msg(f"Video görevi gönderiliyor... ({acc['email']})")
+            token = login_and_get_token() # Her döngüde token'ı yenile
+            
+            submit_headers = {
+                "authorization": "Bearer " + token,
+                "x-device": "TABLET",
+                "x-device-id": "3401879229",
+                "x-os": "WINDOWS",
+                "x-platform": "WEB"
+            }
+            
+            video_payload = {
+                "userImageId": int(str(image_id).strip()),
+                "modelVersion": "MODEL_THREE_PRO_1_5",
+                "prompt": prompt,
+                "generateAudio": generate_audio,
+                "resolution": "720p",
+                "lengthOfSecond": 5,
+                "addEndFrame": False,
+                "aiPromptEnhance": ai_prompt_enhance
+            }
+            
+            print(f"[VIDEO DEBUG] Video payload: {video_payload}")
+            
+            try:
+                resp_video = requests.post(URL_VIDEO_SUBMIT, headers=submit_headers, json=video_payload)
+                resp_json = resp_video.json()
+                
+                print(f"[VIDEO DEBUG] Video submit status: {resp_video.status_code}")
+                print(f"[VIDEO DEBUG] Video submit response: {str(resp_json)[:500]}")
+                
+                current_q = refresh_quota(token)
+                error_code = resp_json.get('error', {}).get('code', 0)
+
+                if error_code != 0:
+                    log_msg(f"HATA! Code: {error_code}. Kota: {current_q}")
+                    
+                    safe_quota = current_q if isinstance(current_q, int) else 0
+                    should_switch_and_delete = False
+
+                    if safe_quota <= 0:
+                        should_switch_and_delete = True
+                        log_msg("Kota 0, hesap siliniyor ve geçiliyor...")
+                    else:
+                        log_msg(f"Kota ({safe_quota}) var ama hata. Onay bekleniyor...")
+                        if task_id in STATE['tasks']:
+                            STATE['tasks'][task_id]['status'] = 'waiting_confirmation'
+                        
+                        wait_start = time.time()
+                        user_response = None
+                        while time.time() - wait_start < 300:
+                            if task_id not in STATE['tasks']: return 
+                            
+                            status_now = STATE['tasks'][task_id]['status']
+                            if status_now == 'resume_approved':
+                                user_response = 'yes'
+                                break
+                            elif status_now == 'resume_rejected':
+                                user_response = 'no'
+                                break
+                            time.sleep(1)
+                        
+                        if user_response == 'yes':
+                            should_switch_and_delete = True
+                            if task_id in STATE['tasks']: STATE['tasks'][task_id]['status'] = 'running'
+                        else:
+                            log_msg("İptal edildi.")
+                            if task_id in STATE['tasks']: STATE['tasks'][task_id]['status'] = 'failed'
+                            return
+
+                    if should_switch_and_delete:
+                        if rotate_account(delete_current=True):
+                            token = login_and_get_token()
+                            continue
+                        else:
+                            log_msg("Başka hesap kalmadı.")
+                            if task_id in STATE['tasks']: STATE['tasks'][task_id]['status'] = 'failed'
+                            return
+                else:
+                    target_task_id = resp_json.get('data', {}).get('data', {}).get('taskId')
+                    print(f"[VIDEO DEBUG] Target task ID: {target_task_id}")
+                    break
+            except Exception as e:
+                log_msg(f"Submit hatası: {str(e)}")
+                if task_id in STATE['tasks']: STATE['tasks'][task_id]['status'] = 'failed'
+                return
+        
+        log_msg("Video işleniyor...")
+        
+        # Poll for video completion
+        attempt = 0
+        while attempt < 300:  # Max 10 minutes
+            if task_id not in STATE['tasks']: return
+            attempt += 1
+            time.sleep(2)
+            
+            try:
+                resp_poll = requests.get(URL_VIDEO_TASKS, headers=upload_headers)
+                json_data = resp_poll.json()
+                
+                if attempt == 1:
+                    print(f"[VIDEO DEBUG] First poll response structure: {str(json_data)[:500]}")
+                
+                # Check video tasks - try multiple possible paths
+                video_list = None
+                
+                # Try path: data.data.data (list)
+                if json_data.get('data', {}).get('data', {}).get('data'):
+                    video_list = json_data['data']['data']['data']
+                # Try path: data.data (if it's a list)
+                elif isinstance(json_data.get('data', {}).get('data'), list):
+                    video_list = json_data['data']['data']
+                # Try path: data (if it's a list)
+                elif isinstance(json_data.get('data'), list):
+                    video_list = json_data['data']
+                
+                if video_list:
+                    # Find our video by taskId
+                    target_video = None
+                    for video in video_list:
+                        if target_task_id and video.get('taskId') == target_task_id:
+                            target_video = video
+                            break
+                    
+                    if target_video:
+                        video_state = target_video.get('taskState', '')
+                        video_url = target_video.get('noWaterMarkVideoUrl')
+                        
+                        if attempt <= 3:
+                            print(f"[VIDEO DEBUG] Video state: {video_state}, URL: {video_url}")
+                        
+                        if video_state == 'FAIL':
+                            log_msg("Video oluşturma başarısız!")
+                            STATE['tasks'][task_id]['status'] = 'failed'
+                            refresh_quota(token)
+                            return
+                        
+                        if video_url:
+                            STATE['tasks'][task_id]['video_url'] = video_url
+                            STATE['tasks'][task_id]['status'] = 'completed'
+                            log_msg("Video tamamlandı!")
+                            refresh_quota(token)
+                            return
+            except Exception as e:
+                if attempt <= 3:
+                    print(f"[VIDEO DEBUG] Poll error: {str(e)}")
+            
+            if attempt % 10 == 0:
+                log_msg(f"Video işleniyor... ({attempt*2}s)")
+        
+        log_msg("Video zaman aşımı.")
+        STATE['tasks'][task_id]['status'] = 'failed'
+        refresh_quota(token)
+
+    except Exception as e:
+        log_msg(f"Kritik Hata: {str(e)}")
+        if task_id in STATE['tasks']: STATE['tasks'][task_id]['status'] = 'failed'
+
 # --- Routes ---
 
 @app.route('/login', methods=['POST'])
@@ -416,11 +648,18 @@ def create_task():
         return jsonify({'error': 'Önce hesapları yükleyin!'}), 400
     form_data = request.form.to_dict()
     
+    # Get task mode from form
+    task_mode = form_data.get('task_mode', 'text')  # text, image, text-video, image-video
+    
+    # Debug logging
+    print(f"[CREATE_TASK] Task mode: {task_mode}")
+    print(f"[CREATE_TASK] Form data: {form_data}")
+    
     # Çoklu dosya desteği
     files = request.files.getlist('files[]')
     file_paths = []
     
-    # Dosya var mı diye kontrol et (varsa Image2Image, yoksa Text2Image)
+    # Dosya var mı diye kontrol et
     if files and files[0].filename != '':
         for file in files:
             safe_name = f"{uuid.uuid4()}_{file.filename}"
@@ -430,17 +669,48 @@ def create_task():
     
     task_id = str(uuid.uuid4())
     
+    # Determine mode label based on task_mode
+    if task_mode == 'text':
+        mode_label = 'Text-to-Image'
+    elif task_mode == 'image':
+        mode_label = 'Image-to-Image'
+    elif task_mode == 'text-video':
+        mode_label = 'Text-to-Video'
+    elif task_mode == 'image-video':
+        mode_label = 'Image-to-Video'
+    else:
+        mode_label = 'Text-to-Image' if not file_paths else 'Image-to-Image'
+    
+    # Filter params based on task type
+    is_video_mode = task_mode in ['text-video', 'image-video']
+    if is_video_mode:
+        # Only store video-relevant params
+        task_params = {
+            'prompt': form_data.get('prompt', ''),
+            'ai_prompt': form_data.get('ai_prompt', 'on'),
+            'audio': form_data.get('audio', 'on')
+        }
+    else:
+        task_params = form_data
+    
     STATE['tasks'][task_id] = {
         'id': task_id,
         'status': 'pending',
         'logs': [],
         'image_url': None,
-        'params': form_data,
+        'video_url': None,
+        'params': task_params,
         'created_at': time.time(),
-        'mode': 'Image-to-Image' if file_paths else 'Text-to-Image'
+        'mode': mode_label
     }
     
-    thread = threading.Thread(target=process_task_thread, args=(task_id, file_paths, form_data))
+    # Choose appropriate thread function based on mode
+    
+    if is_video_mode:
+        thread = threading.Thread(target=process_video_task_thread, args=(task_id, file_paths, form_data))
+    else:
+        thread = threading.Thread(target=process_task_thread, args=(task_id, file_paths, form_data))
+    
     thread.daemon = True
     thread.start()
     
@@ -586,6 +856,18 @@ def proxy_image():
         return Response(stream_with_context(req.iter_content(chunk_size=1024)), content_type=req.headers['content-type'])
     except:
         return "Error fetching image", 500
+
+# Video proxy üzerinden sunma
+@app.route('/proxy_video')
+def proxy_video():
+    url = request.args.get('url')
+    if not url: return "No URL", 400
+    try:
+        req = requests.get(url, stream=True)
+        content_type = req.headers.get('content-type', 'video/mp4')
+        return Response(stream_with_context(req.iter_content(chunk_size=4096)), content_type=content_type)
+    except:
+        return "Error fetching video", 500
 
 # --- Gemini Chat Endpoint ---
 @app.route('/gemini_chat', methods=['POST'])
