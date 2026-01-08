@@ -574,6 +574,12 @@ def process_video_task_thread(task_id, file_paths, form_data):
                         
                         if video_url:
                             STATE['tasks'][task_id]['video_url'] = video_url
+                            # Thumbnail capturing
+                            if not STATE['tasks'][task_id].get('image_url'):
+                                thumb = target_video.get('imageUrl') or target_video.get('thumbnailUrl') or target_video.get('videoCoverUrl')
+                                if thumb:
+                                    STATE['tasks'][task_id]['image_url'] = thumb
+                            
                             STATE['tasks'][task_id]['status'] = 'completed'
                             log_msg("Video tamamlandı!")
                             refresh_quota(token)
@@ -762,6 +768,7 @@ def add_favorite():
     data = request.json
     favorite = {
         'image_url': data.get('image_url'),
+        'video_url': data.get('video_url'), # Add video_url support
         'prompt': data.get('prompt'),
         'params': data.get('params', {})
     }
@@ -775,7 +782,13 @@ def remove_favorite():
     
     data = request.json
     image_url = data.get('image_url')
-    STATE['favorites'] = [f for f in STATE['favorites'] if f['image_url'] != image_url]
+    video_url = data.get('video_url')
+    
+    if image_url:
+        STATE['favorites'] = [f for f in STATE['favorites'] if f.get('image_url') != image_url]
+    elif video_url:
+        STATE['favorites'] = [f for f in STATE['favorites'] if f.get('video_url') != video_url]
+        
     return jsonify({'success': True})
 
 @app.route('/get_favorites')
