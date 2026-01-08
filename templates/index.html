@@ -171,13 +171,21 @@
 
             <form id="taskForm" class="space-y-6">
                 <!-- Mode Switch Tabs -->
-                <div class="bg-[#131315] p-1 rounded-xl flex border border-white/5">
-                    <button type="button" onclick="setMode('text')" id="tab-text" class="flex-1 py-2 rounded-lg text-xs font-bold transition-all bg-indigo-600 text-white shadow-lg">
-                        <i class="fa-solid fa-paragraph mr-1"></i> Metinden Resim
-                    </button>
-                    <button type="button" onclick="setMode('image')" id="tab-image" class="flex-1 py-2 rounded-lg text-xs font-bold transition-all text-gray-400 hover:text-white hover:bg-white/5">
-                        <i class="fa-solid fa-images mr-1"></i> Resimden Resim
-                    </button>
+                <div class="bg-[#131315] p-1 rounded-xl border border-white/5">
+                    <div class="grid grid-cols-2 gap-1">
+                        <button type="button" onclick="setMode('text')" id="tab-text" class="py-2 rounded-lg text-xs font-bold transition-all bg-indigo-600 text-white shadow-lg">
+                            <i class="fa-solid fa-paragraph mr-1"></i> Metinden Resim
+                        </button>
+                        <button type="button" onclick="setMode('image')" id="tab-image" class="py-2 rounded-lg text-xs font-bold transition-all text-gray-400 hover:text-white hover:bg-white/5">
+                            <i class="fa-solid fa-images mr-1"></i> Resimden Resim
+                        </button>
+                        <button type="button" onclick="setMode('text-video')" id="tab-text-video" class="py-2 rounded-lg text-xs font-bold transition-all text-gray-400 hover:text-white hover:bg-white/5">
+                            <i class="fa-solid fa-film mr-1"></i> Metinden Video
+                        </button>
+                        <button type="button" onclick="setMode('image-video')" id="tab-image-video" class="py-2 rounded-lg text-xs font-bold transition-all text-gray-400 hover:text-white hover:bg-white/5">
+                            <i class="fa-solid fa-video mr-1"></i> Resimden Video
+                        </button>
+                    </div>
                 </div>
 
                 <!-- Image Upload Area (Conditional) -->
@@ -208,8 +216,43 @@
                     </button>
                 </div>
 
-                <!-- Settings Grid -->
-                <div class="grid grid-cols-2 gap-4">
+                <!-- Video Options Area (Conditional - for video modes) -->
+                <div id="videoOptionsArea" class="hidden transition-all duration-300 space-y-4">
+                    <!-- AI Prompt Switch -->
+                    <div class="bg-[#131315] rounded-xl border border-white/5 p-4">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <label class="text-[10px] font-bold text-gray-500 uppercase tracking-widest">AI Prompt</label>
+                                <p class="text-[9px] text-gray-600 mt-0.5">Yapay zeka ile prompt iyileştirme</p>
+                            </div>
+                            <div class="relative">
+                                <input type="checkbox" id="aiPromptSwitch" name="ai_prompt" checked class="sr-only peer">
+                                <div class="w-11 h-6 bg-gray-700 rounded-full peer peer-checked:bg-indigo-600 transition-colors cursor-pointer" onclick="document.getElementById('aiPromptSwitch').click()"></div>
+                                <div class="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-5 pointer-events-none"></div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Audio Checkbox -->
+                    <div class="bg-[#131315] rounded-xl border border-white/5 p-4">
+                        <label class="flex items-center justify-between cursor-pointer">
+                            <div>
+                                <span class="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Ses Oluştur</span>
+                                <p class="text-[9px] text-gray-600 mt-0.5">Video için otomatik ses oluştur</p>
+                            </div>
+                            <div class="relative flex items-center">
+                                <input type="checkbox" id="audioCheckbox" name="audio" checked class="w-5 h-5 rounded border-2 border-gray-600 bg-transparent checked:bg-indigo-600 checked:border-indigo-600 cursor-pointer transition-colors appearance-none">
+                                <i class="fa-solid fa-check text-white text-[10px] absolute left-[5px] pointer-events-none hidden peer-checked:block" id="audioCheckIcon"></i>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Hidden mode input -->
+                <input type="hidden" name="task_mode" id="taskModeInput" value="text">
+
+                <!-- Image Settings Grid (Conditional - for image modes) -->
+                <div id="imageSettingsArea" class="grid grid-cols-2 gap-4">
                     <div class="space-y-1">
                         <label class="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Model Versiyonu</label>
                         <div class="relative">
@@ -520,37 +563,65 @@
 
     <script>
         // --- UI Logic ---
+        let currentMode = 'text'; // Track current mode
+        
         function setMode(mode) {
+            currentMode = mode;
+            
             const tabText = document.getElementById('tab-text');
             const tabImage = document.getElementById('tab-image');
+            const tabTextVideo = document.getElementById('tab-text-video');
+            const tabImageVideo = document.getElementById('tab-image-video');
             const uploadArea = document.getElementById('imageUploadArea');
             const fileInput = document.getElementById('sourceFiles');
-
-            if(mode === 'text') {
-                tabText.classList.replace('text-gray-400', 'text-white');
-                tabText.classList.replace('hover:bg-white/5', 'bg-indigo-600');
-                tabText.classList.add('shadow-lg');
-                
-                tabImage.classList.replace('bg-indigo-600', 'hover:bg-white/5');
-                tabImage.classList.replace('text-white', 'text-gray-400');
-                tabImage.classList.replace('shadow-lg', 'text-gray-400'); // Clean up classes logic a bit loosely but works
-                
+            const videoOptionsArea = document.getElementById('videoOptionsArea');
+            const imageSettingsArea = document.getElementById('imageSettingsArea');
+            const taskModeInput = document.getElementById('taskModeInput');
+            
+            // All tabs - reset to inactive state
+            const allTabs = [tabText, tabImage, tabTextVideo, tabImageVideo];
+            allTabs.forEach(tab => {
+                tab.classList.remove('bg-indigo-600', 'text-white', 'shadow-lg');
+                tab.classList.add('text-gray-400', 'hover:text-white', 'hover:bg-white/5');
+            });
+            
+            // Set active tab
+            let activeTab;
+            if(mode === 'text') activeTab = tabText;
+            else if(mode === 'image') activeTab = tabImage;
+            else if(mode === 'text-video') activeTab = tabTextVideo;
+            else if(mode === 'image-video') activeTab = tabImageVideo;
+            
+            activeTab.classList.remove('text-gray-400', 'hover:text-white', 'hover:bg-white/5');
+            activeTab.classList.add('bg-indigo-600', 'text-white', 'shadow-lg');
+            
+            // Update hidden mode input
+            taskModeInput.value = mode;
+            
+            // Determine what to show based on mode
+            const isVideoMode = mode === 'text-video' || mode === 'image-video';
+            const needsImageUpload = mode === 'image' || mode === 'image-video';
+            
+            // Image upload area
+            if(needsImageUpload) {
+                uploadArea.classList.remove('hidden');
+                fileInput.disabled = false;
+            } else {
                 uploadArea.classList.add('hidden');
                 fileInput.disabled = true;
-                fileInput.value = ''; // Reset files
+                fileInput.value = '';
                 document.getElementById('filePreviewGrid').innerHTML = '';
                 document.getElementById('filePreviewGrid').classList.add('hidden');
                 document.getElementById('dropZone').classList.remove('opacity-0');
+            }
+            
+            // Video options vs Image settings
+            if(isVideoMode) {
+                videoOptionsArea.classList.remove('hidden');
+                imageSettingsArea.classList.add('hidden');
             } else {
-                tabImage.classList.replace('text-gray-400', 'text-white');
-                tabImage.classList.replace('hover:bg-white/5', 'bg-indigo-600');
-                tabImage.classList.add('shadow-lg');
-                
-                tabText.classList.replace('bg-indigo-600', 'hover:bg-white/5');
-                tabText.classList.replace('text-white', 'text-gray-400');
-                
-                uploadArea.classList.remove('hidden');
-                fileInput.disabled = false;
+                videoOptionsArea.classList.add('hidden');
+                imageSettingsArea.classList.remove('hidden');
             }
         }
 
@@ -664,13 +735,14 @@
             const formData = new FormData(form);
             const btn = document.getElementById('submitBtn');
             const fileInput = document.getElementById('sourceFiles');
+            const mode = currentMode;
 
-            // If text mode, remove files from formData manually or ensure backend handles it
-            // formData automatically includes files if input is not disabled.
-            // Our setMode logic disables the input, so formData won't have files in Text mode. Correct.
+            // Validation based on mode
+            const needsImage = mode === 'image' || mode === 'image-video';
             
-            if(!fileInput.disabled && fileInput.files.length === 0) {
-                return alert("Resimden resim modu için en az bir resim seçmelisiniz!");
+            if(needsImage && fileInput.files.length === 0) {
+                const modeLabel = mode === 'image' ? 'Resimden resim' : 'Resimden video';
+                return alert(`${modeLabel} modu için en az bir resim seçmelisiniz!`);
             }
             if(!formData.get('prompt')) return alert("Prompt girmelisiniz!");
 
@@ -726,33 +798,51 @@
 
             const lastLog = task.logs.length > 0 ? task.logs[task.logs.length - 1] : "Kuyruğa alındı...";
             
-            // Image Content
+            // Determine if this is a video task
+            const isVideoTask = task.mode && (task.mode.includes('Video') || task.mode.includes('video'));
+            
+            // Content based on task type and status
             let mainContent = '';
-            if (task.status === 'completed' && task.image_url) {
-                // Serialize task for addToFavorites - escape quotes
-                const taskJson = JSON.stringify(task).replace(/"/g, '&quot;');
-                mainContent = `
-                    <div class="relative aspect-[9/16] mt-3 rounded-lg overflow-hidden group/img border border-white/10 bg-black">
-                        <img src="${task.image_url}" class="w-full h-full object-cover transition duration-700 group-hover/img:scale-110">
-                        <div class="absolute inset-0 bg-black/60 opacity-0 group-hover/img:opacity-100 transition duration-300 flex flex-col items-center justify-center gap-2 backdrop-blur-sm">
-                            <button onclick="showLightbox('${task.image_url}')" class="bg-white text-black px-4 py-2 rounded-full text-xs font-bold hover:bg-indigo-50 hover:text-indigo-600 transition transform hover:scale-105 flex items-center gap-2">
-                                <i class="fa-solid fa-expand"></i> Görüntüle
-                            </button>
-                            <a href="${task.image_url}" download class="bg-indigo-600 text-white px-4 py-2 rounded-full text-xs font-bold hover:bg-indigo-500 transition transform hover:scale-105 flex items-center gap-2">
-                                <i class="fa-solid fa-download"></i> İndir
-                            </a>
-                            <button onclick='addToFavorites(${taskJson})' class="bg-red-500 text-white px-4 py-2 rounded-full text-xs font-bold hover:bg-red-600 transition transform hover:scale-105 flex items-center gap-2">
-                                <i class="fa-solid fa-heart"></i> Favorilere Ekle
-                            </button>
+            if (task.status === 'completed') {
+                if (isVideoTask && task.video_url) {
+                    // Video task completed - show video player
+                    mainContent = `
+                        <div class="relative aspect-[9/16] mt-3 rounded-lg overflow-hidden group/vid border border-white/10 bg-black">
+                            <video src="${task.video_url}" class="w-full h-full object-cover" controls poster="${task.image_url || ''}"></video>
+                            <div class="absolute inset-0 bg-black/60 opacity-0 group-hover/vid:opacity-100 transition duration-300 flex flex-col items-center justify-center gap-2 backdrop-blur-sm pointer-events-none">
+                                <a href="${task.video_url}" download class="bg-indigo-600 text-white px-4 py-2 rounded-full text-xs font-bold hover:bg-indigo-500 transition transform hover:scale-105 flex items-center gap-2 pointer-events-auto">
+                                    <i class="fa-solid fa-download"></i> Video İndir
+                                </a>
+                            </div>
                         </div>
-                    </div>
-                `;
+                    `;
+                } else if (task.image_url) {
+                    // Image task completed - show image
+                    const taskJson = JSON.stringify(task).replace(/"/g, '&quot;');
+                    mainContent = `
+                        <div class="relative aspect-[9/16] mt-3 rounded-lg overflow-hidden group/img border border-white/10 bg-black">
+                            <img src="${task.image_url}" class="w-full h-full object-cover transition duration-700 group-hover/img:scale-110">
+                            <div class="absolute inset-0 bg-black/60 opacity-0 group-hover/img:opacity-100 transition duration-300 flex flex-col items-center justify-center gap-2 backdrop-blur-sm">
+                                <button onclick="showLightbox('${task.image_url}')" class="bg-white text-black px-4 py-2 rounded-full text-xs font-bold hover:bg-indigo-50 hover:text-indigo-600 transition transform hover:scale-105 flex items-center gap-2">
+                                    <i class="fa-solid fa-expand"></i> Görüntüle
+                                </button>
+                                <a href="${task.image_url}" download class="bg-indigo-600 text-white px-4 py-2 rounded-full text-xs font-bold hover:bg-indigo-500 transition transform hover:scale-105 flex items-center gap-2">
+                                    <i class="fa-solid fa-download"></i> İndir
+                                </a>
+                                <button onclick='addToFavorites(${taskJson})' class="bg-red-500 text-white px-4 py-2 rounded-full text-xs font-bold hover:bg-red-600 transition transform hover:scale-105 flex items-center gap-2">
+                                    <i class="fa-solid fa-heart"></i> Favorilere Ekle
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }
             } else if (['running', 'pending', 'waiting_confirmation'].includes(task.status)) {
+                const processingText = isVideoTask ? 'Video Üretiliyor' : 'AI Üretiyor';
                 mainContent = `
                     <div class="aspect-[9/16] mt-3 rounded-lg border border-dashed border-gray-700 bg-black/20 flex flex-col items-center justify-center relative overflow-hidden">
                         <div class="absolute inset-0 bg-gradient-to-t from-indigo-500/5 to-transparent animate-pulse"></div>
-                        <i class="fa-solid fa-circle-notch fa-spin text-2xl text-indigo-500 mb-2"></i>
-                        <span class="text-[10px] text-indigo-300 font-mono tracking-widest uppercase">AI Üretiyor</span>
+                        <i class="fa-solid fa-circle-notch fa-spin text-2xl ${isVideoTask ? 'text-purple-500' : 'text-indigo-500'} mb-2"></i>
+                        <span class="text-[10px] ${isVideoTask ? 'text-purple-300' : 'text-indigo-300'} font-mono tracking-widest uppercase">${processingText}</span>
                     </div>
                 `;
             } else {
@@ -764,11 +854,18 @@
                 `;
             }
 
+            // Mode badge
+            let modeBadge = 'TXT';
+            if (task.mode === 'Image-to-Image') modeBadge = 'IMG';
+            else if (task.mode === 'Text-to-Video') modeBadge = 'VID';
+            else if (task.mode === 'Image-to-Video') modeBadge = 'VID';
+            else if (task.mode && task.mode.includes('Video')) modeBadge = 'VID';
+
             return `
                 <div class="flex justify-between items-start relative z-10">
                     <div>
                         <div class="flex items-center gap-2 mb-1">
-                            <span class="text-[9px] font-black bg-white/10 text-gray-400 px-1.5 py-0.5 rounded tracking-widest">${task.mode === 'Text-to-Image' ? 'TXT' : 'IMG'}</span>
+                            <span class="text-[9px] font-black ${isVideoTask ? 'bg-purple-500/20 text-purple-400' : 'bg-white/10 text-gray-400'} px-1.5 py-0.5 rounded tracking-widest">${modeBadge}</span>
                             <span class="text-[9px] font-mono text-gray-500">#${task.id.substring(0,5)}</span>
                         </div>
                     </div>
