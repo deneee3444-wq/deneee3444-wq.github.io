@@ -325,7 +325,7 @@ def process_task_thread(task_id, file_paths, form_data):
 
         # Polling
         attempt = 0
-        while attempt < 600:
+        while attempt < 9000:
             if task_id not in STATE['tasks']: return
             attempt += 1
             time.sleep(2)
@@ -526,7 +526,7 @@ def process_video_task_thread(task_id, file_paths, form_data):
         
         # Poll for video completion
         attempt = 0
-        while attempt < 300:  # Max 10 minutes
+        while attempt < 9000:  # Max 10 minutes
             if task_id not in STATE['tasks']: return
             attempt += 1
             time.sleep(2)
