@@ -741,10 +741,7 @@ def process_text_to_video_task_thread(task_id, form_data):
                 resp_json = resp_video.json()
                 
                 current_q = refresh_quota(token)
-                
-                error_code = 0
-                if 'error' in resp_json and resp_json['error']:
-                    error_code = resp_json['error'].get('code', 0)
+                error_code = resp_json.get('error', {}).get('code', 0)
 
                 if error_code != 0:
                     log_msg(f"HATA! Code: {error_code}. Kota: {current_q}")
@@ -791,11 +788,9 @@ def process_text_to_video_task_thread(task_id, form_data):
                             if task_id in STATE['tasks']: STATE['tasks'][task_id]['status'] = 'failed'
                             return
                 else:
-                    try:
-                        target_task_id = resp_json['data']['data']['taskId']
-                        log_msg(f"ID: {target_task_id}")
-                    except:
-                        log_msg("ID parse hatası.")
+                    target_task_id = resp_json.get('data', {}).get('data', {}).get('taskId')
+                    log_msg(f"ID: {target_task_id}")
+                    refresh_quota(token)
                     break
             except Exception as e:
                 log_msg(f"Submit hatası: {str(e)}")
@@ -842,8 +837,10 @@ def process_text_to_video_task_thread(task_id, form_data):
                         
                         # Robust video URL extraction
                         def extract_v_url(obj):
+                            # Try top level
                             v = obj.get('noWaterMarkVideoUrl') or obj.get('noWatermarkVideoUrl')
                             if not v:
+                                # Try nested detail.creation (common in Assets API)
                                 creation = obj.get('detail', {}).get('creation', {})
                                 v = creation.get('noWaterMarkVideoUrl') or creation.get('noWatermarkVideoUrl')
                             
