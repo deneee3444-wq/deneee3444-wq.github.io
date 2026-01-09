@@ -93,11 +93,11 @@
         
         <!-- Header -->
         <div class="p-6 border-b border-white/5 bg-[#0a0a0a]">
-            <div class="flex justify-between items-start mb-4">
-                <h1 class="text-2xl font-black bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-transparent bg-clip-text flex items-center gap-3 tracking-tighter">
-                    <i class="fa-solid fa-bolt text-indigo-500 text-xl"></i> NANOBANANA <span class="text-xs text-gray-500 font-mono font-normal mt-1 border border-gray-800 px-1 rounded">PRO</span>
+            <div class="flex justify-between items-start mb-4 gap-4">
+                <h1 class="text-xl sm:text-2xl font-black bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-transparent bg-clip-text flex items-center gap-3 tracking-tighter shrink-0">
+                    <i class="fa-solid fa-bolt text-indigo-500 text-xl"></i> NANOBANANA <span class="text-[10px] sm:text-xs text-gray-500 font-mono font-normal mt-1 border border-gray-800 px-1 rounded">PRO</span>
                 </h1>
-                <div class="flex items-center gap-2">
+                <div class="flex items-center gap-2 shrink-0">
                     <button onclick="openGeminiChat()" class="text-xs text-gray-500 hover:text-indigo-400 hover:bg-indigo-500/10 px-3 py-2 rounded-lg transition border border-gray-800 hover:border-indigo-500/30 flex items-center gap-2" title="AI Asistan">
                         <i class="fa-solid fa-robot"></i>
                     </button>
@@ -219,7 +219,7 @@
                 <!-- Video Options Area (Conditional - for video modes) -->
                 <div id="videoOptionsArea" class="hidden transition-all duration-300 space-y-4">
                     <!-- AI Prompt Switch -->
-                    <div class="bg-[#131315] rounded-xl border border-white/5 p-4">
+                    <div id="aiPromptContainer" class="bg-[#131315] rounded-xl border border-white/5 p-4">
                         <div class="flex items-center justify-between">
                             <div>
                                 <label class="text-[10px] font-bold text-gray-500 uppercase tracking-widest">AI Prompt</label>
@@ -234,7 +234,7 @@
                     </div>
                     
                     <!-- Audio Checkbox -->
-                    <div class="bg-[#131315] rounded-xl border border-white/5 p-4">
+                    <div id="audioContainer" class="bg-[#131315] rounded-xl border border-white/5 p-4">
                         <label class="flex items-center justify-between cursor-pointer">
                             <div>
                                 <span class="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Ses Oluştur</span>
@@ -245,6 +245,21 @@
                                 <i class="fa-solid fa-check text-white text-[10px] absolute left-[5px] pointer-events-none hidden peer-checked:block" id="audioCheckIcon"></i>
                             </div>
                         </label>
+                    </div>
+
+                    <!-- Video Aspect Ratio (For Text-to-Video) -->
+                    <div id="videoAspectRatioArea" class="space-y-1 hidden">
+                         <label class="text-[10px] font-bold text-gray-500 uppercase tracking-widest">En Boy Oranı</label>
+                         <div class="grid grid-cols-2 gap-2">
+                             <label class="cursor-pointer">
+                                 <input type="radio" name="video_size" value="SIXTEEN_BY_NINE" class="peer hidden" checked>
+                                 <div class="bg-[#131315] border border-white/10 rounded-lg py-2 text-center text-[10px] text-gray-400 peer-checked:bg-indigo-600 peer-checked:text-white peer-checked:border-transparent transition hover:bg-white/5">16:9</div>
+                             </label>
+                             <label class="cursor-pointer">
+                                 <input type="radio" name="video_size" value="NINE_BY_SIXTEEN" class="peer hidden">
+                                 <div class="bg-[#131315] border border-white/10 rounded-lg py-2 text-center text-[10px] text-gray-400 peer-checked:bg-indigo-600 peer-checked:text-white peer-checked:border-transparent transition hover:bg-white/5">9:16</div>
+                             </label>
+                         </div>
                     </div>
                 </div>
 
@@ -426,7 +441,7 @@
 
     <!-- PROMPT INFO MODAL -->
     <div id="promptModal" class="fixed inset-0 z-[60] bg-black/80 hidden flex items-center justify-center backdrop-blur-md opacity-0 transition-opacity duration-300">
-        <div class="bg-[#18181b] border border-gray-700 rounded-2xl p-6 max-w-lg w-full shadow-2xl transform scale-95 transition-transform duration-300 relative">
+        <div class="bg-[#18181b] border border-gray-700 rounded-2xl p-6 max-w-lg w-full shadow-2xl transform scale-95 transition-transform duration-300 relative mx-4">
             <button onclick="closeModal('promptModal')" class="absolute top-4 right-4 text-gray-500 hover:text-white transition"><i class="fa-solid fa-xmark text-lg"></i></button>
             <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2"><i class="fa-solid fa-circle-info text-indigo-500"></i> Tam Prompt</h3>
             <div class="bg-black/50 p-4 rounded-xl border border-white/5 mb-4 custom-scroll max-h-[300px] overflow-y-auto">
@@ -619,6 +634,22 @@
             if(isVideoMode) {
                 videoOptionsArea.classList.remove('hidden');
                 imageSettingsArea.classList.add('hidden');
+                
+                const aiPromptContainer = document.getElementById('aiPromptContainer');
+                const audioContainer = document.getElementById('audioContainer');
+                const videoRatioArea = document.getElementById('videoAspectRatioArea');
+                
+                if(mode === 'text-video') {
+                    // Metinden Video: AI Prompt ve Ses gizli, Oran açık
+                    aiPromptContainer.classList.add('hidden');
+                    audioContainer.classList.add('hidden');
+                    videoRatioArea.classList.remove('hidden');
+                } else {
+                    // Resimden Video: AI Prompt ve Ses açık, Oran gizli (resimden alır)
+                    aiPromptContainer.classList.remove('hidden');
+                    audioContainer.classList.remove('hidden');
+                    videoRatioArea.classList.add('hidden');
+                }
             } else {
                 videoOptionsArea.classList.add('hidden');
                 imageSettingsArea.classList.remove('hidden');
@@ -782,6 +813,26 @@
                 return alert(`${modeLabel} modu için en az bir resim seçmelisiniz!`);
             }
             if(!formData.get('prompt')) return alert("Prompt girmelisiniz!");
+
+            // Clean up formData before sending
+            if(mode === 'text-video') {
+                // For text-video, only prompt and video_size matter
+                formData.delete('ai_prompt');
+                formData.delete('audio');
+                formData.delete('image_size');
+                formData.delete('model_version');
+                formData.delete('resolution');
+            } else if(mode === 'image-video') {
+                // For image-video, prompt, ai_prompt, audio and image_size (source) matter
+                formData.delete('video_size');
+                formData.delete('model_version');
+                formData.delete('resolution');
+            } else {
+                // For image modes, video relevant options are deleted
+                formData.delete('video_size');
+                formData.delete('ai_prompt');
+                formData.delete('audio');
+            }
 
             btn.disabled = true;
             btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin text-xl"></i>';
