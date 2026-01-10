@@ -392,9 +392,15 @@ def process_video_task_thread(task_id, file_paths, form_data):
         file_path = file_paths[0]
         
         # Get video options from form
+        video_model = form_data.get('video_model', 'quality_v20_img')
         ai_prompt_enhance = form_data.get('ai_prompt', 'on') == 'on'
         generate_audio = form_data.get('audio', 'on') == 'on'
         prompt = form_data.get('prompt', '')
+        video_resolution = form_data.get('video_resolution', '720p')
+        video_duration = int(form_data.get('video_duration', '5'))
+        video_size = form_data.get('video_size', 'SIXTEEN_BY_NINE')
+        
+        log_msg(f"Model: {video_model}")
         
         target_task_id = None
         
@@ -447,16 +453,64 @@ def process_video_task_thread(task_id, file_paths, form_data):
                 "x-platform": "WEB"
             }
             
-            video_payload = {
-                "userImageId": int(str(image_id).strip()),
-                "modelVersion": "MODEL_THREE_PRO_1_5",
-                "prompt": prompt,
-                "generateAudio": generate_audio,
-                "resolution": "720p",
-                "lengthOfSecond": 5,
-                "addEndFrame": False,
-                "aiPromptEnhance": ai_prompt_enhance
-            }
+            # Build payload based on video model
+            if video_model == 'quality_v20_img':
+                # Quality V2.0 - Sessiz, 512/720p, 5sn/10sn, +AI Prompt
+                video_payload = {
+                    "userImageId": int(str(image_id).strip()),
+                    "prompt": prompt,
+                    "lengthOfSecond": video_duration,
+                    "resolution": video_resolution,
+                    "aiPromptEnhance": ai_prompt_enhance,
+                    "addEndFrame": False
+                }
+            elif video_model == 'quality_v25_img':
+                # Quality V2.5 - Sesli/Sessiz, 512/720p, 5sn/10sn, +AI Prompt
+                video_payload = {
+                    "userImageId": int(str(image_id).strip()),
+                    "prompt": prompt,
+                    "lengthOfSecond": video_duration,
+                    "resolution": video_resolution,
+                    "aiPromptEnhance": ai_prompt_enhance,
+                    "addEndFrame": False,
+                    "generateAudio": generate_audio,
+                    "modelVersion": "MODEL_THREE_PRO_1_5"
+                }
+            elif video_model == 'master_v20_img':
+                # Master V2.0 - Sessiz, 720p, 8sn, 16:9/9:16, +AI Prompt
+                video_payload = {
+                    "addEndFrame": False,
+                    "userImageId": int(str(image_id).strip()),
+                    "prompt": prompt,
+                    "lengthOfSecond": 8,
+                    "resolution": "720p",
+                    "size": video_size,
+                    "aiPromptEnhance": ai_prompt_enhance,
+                    "modelVersion": "MODEL_FIVE_FAST_3"
+                }
+            elif video_model == 'sora2_img':
+                # Sora 2 - Sessiz, 720p, 10sn, 16:9/9:16, +AI Prompt
+                video_payload = {
+                    "addEndFrame": False,
+                    "userImageId": int(str(image_id).strip()),
+                    "prompt": prompt,
+                    "resolution": "720p",
+                    "lengthOfSecond": 10,
+                    "aiPromptEnhance": ai_prompt_enhance,
+                    "modelVersion": "MODEL_ELEVEN_IMAGE_TO_VIDEO_V2",
+                    "size": video_size
+                }
+            else:
+                # Fallback to Quality V2.0
+                video_payload = {
+                    "userImageId": int(str(image_id).strip()),
+                    "prompt": prompt,
+                    "lengthOfSecond": video_duration,
+                    "resolution": video_resolution,
+                    "aiPromptEnhance": ai_prompt_enhance,
+                    "addEndFrame": False
+                }
+
             
             print(f"[VIDEO DEBUG] Video payload: {video_payload}")
             
@@ -700,8 +754,13 @@ def process_text_to_video_task_thread(task_id, form_data):
         token = login_and_get_token()
         
         # Get options from form
+        video_model = form_data.get('video_model', 'quality_v20_txt')
         prompt = form_data.get('prompt', '')
         size = form_data.get('video_size', 'SIXTEEN_BY_NINE')
+        video_duration = int(form_data.get('video_duration', '5'))
+        ai_prompt_enhance = form_data.get('ai_prompt', 'on') == 'on'
+        
+        log_msg(f"Model: {video_model}")
         
         target_task_id = None
         
@@ -725,16 +784,54 @@ def process_text_to_video_task_thread(task_id, form_data):
                 "x-platform": "WEB"
             }
             
-            # STRICT PAYLOAD as requested by user
-            video_payload = {
-                "aiPromptEnhance": False,
-                "lengthOfSecond": 8,
-                "modelType": "MODEL_FIVE",
-                "modelVersion": "MODEL_FIVE_FAST_3",
-                "prompt": prompt,
-                "resolution": "720p",
-                "size": size
-            }
+            # Build payload based on video model
+            if video_model == 'quality_v20_txt':
+                # Quality V2.0 - Sessiz, 480p, 5sn/10sn, 7 aspect ratio
+                video_payload = {
+                    "prompt": prompt,
+                    "size": size,
+                    "resolution": "480p",
+                    "lengthOfSecond": video_duration,
+                    "aiPromptEnhance": ai_prompt_enhance,
+                    "modelType": "MODEL_THREE",
+                    "modelVersion": "MODEL_THREE_PRO"
+                }
+            elif video_model == 'master_v20_txt':
+                # Master V2.0 - Sessiz, 720p, 8sn, 16:9/9:16
+                video_payload = {
+                    "prompt": prompt,
+                    "resolution": "720p",
+                    "size": size,
+                    "lengthOfSecond": 8,
+                    "aiPromptEnhance": ai_prompt_enhance,
+                    "modelType": "MODEL_FIVE",
+                    "modelVersion": "MODEL_FIVE_FAST_3"
+                }
+            elif video_model == 'sora2_txt':
+                # Sora 2 - Sessiz, 720p, 10sn, 16:9/9:16
+                video_payload = {
+                    "prompt": prompt,
+                    "resolution": "720p",
+                    "lengthOfSecond": 10,
+                    "aiPromptEnhance": ai_prompt_enhance,
+                    "size": size,
+                    "modelType": "MODEL_ELEVEN",
+                    "modelVersion": "MODEL_ELEVEN_TEXT_TO_VIDEO_V2"
+                }
+            else:
+                # Fallback to Quality V2.0
+                video_payload = {
+                    "prompt": prompt,
+                    "size": size,
+                    "resolution": "480p",
+                    "lengthOfSecond": video_duration,
+                    "aiPromptEnhance": ai_prompt_enhance,
+                    "modelType": "MODEL_THREE",
+                    "modelVersion": "MODEL_THREE_PRO"
+                }
+            
+            print(f"[TXT-VIDEO DEBUG] Video payload: {video_payload}")
+
             
             try:
                 resp_video = requests.post(URL_TEXT_TO_VIDEO_SUBMIT, headers=submit_headers, json=video_payload)
@@ -972,12 +1069,15 @@ def create_task():
     # Filter params based on task type
     is_video_mode = task_mode in ['text-video', 'image-video']
     if is_video_mode:
-        # Only store video-relevant params
+        # Store video-relevant params including model selection
         task_params = {
             'prompt': form_data.get('prompt', ''),
-            'ai_prompt': form_data.get('ai_prompt', 'off') if task_mode == 'image-video' else 'off',
-            'audio': form_data.get('audio', 'off') if task_mode == 'image-video' else 'off',
-            'size': form_data.get('video_size', 'SIXTEEN_BY_NINE') if task_mode == 'text-video' else form_data.get('image_size', 'SIXTEEN_BY_NINE')
+            'video_model': form_data.get('video_model', 'quality_v20_img' if task_mode == 'image-video' else 'quality_v20_txt'),
+            'video_resolution': form_data.get('video_resolution', '720p'),
+            'video_duration': form_data.get('video_duration', '5'),
+            'video_size': form_data.get('video_size', 'SIXTEEN_BY_NINE'),
+            'ai_prompt': form_data.get('ai_prompt', 'off'),
+            'audio': form_data.get('audio', 'off')
         }
     else:
         task_params = form_data
@@ -992,6 +1092,7 @@ def create_task():
         'created_at': time.time(),
         'mode': mode_label
     }
+
     
     # Choose appropriate thread function based on mode
     
