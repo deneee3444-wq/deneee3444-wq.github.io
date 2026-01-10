@@ -218,23 +218,99 @@
 
                 <!-- Video Options Area (Conditional - for video modes) -->
                 <div id="videoOptionsArea" class="hidden transition-all duration-300 space-y-4">
-                    <!-- AI Prompt Switch -->
-                    <div id="aiPromptContainer" class="bg-[#131315] rounded-xl border border-white/5 p-4">
-                        <div class="flex items-center justify-between">
-                            <div>
-                                <label class="text-[10px] font-bold text-gray-500 uppercase tracking-widest">AI Prompt</label>
-                                <p class="text-[9px] text-gray-600 mt-0.5">Yapay zeka ile prompt iyileştirme</p>
-                            </div>
-                            <div class="relative">
-                                <input type="checkbox" id="aiPromptSwitch" name="ai_prompt" checked class="sr-only peer">
-                                <div class="w-11 h-6 bg-gray-700 rounded-full peer peer-checked:bg-indigo-600 transition-colors cursor-pointer" onclick="document.getElementById('aiPromptSwitch').click()"></div>
-                                <div class="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-5 pointer-events-none"></div>
-                            </div>
+                    <!-- Video Model Selection -->
+                    <div class="space-y-1">
+                        <label class="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Video Modeli</label>
+                        <div class="relative">
+                            <select id="videoModelSelect" name="video_model" class="w-full bg-[#131315] border border-white/10 rounded-lg py-2.5 px-3 text-xs focus:border-indigo-500 outline-none text-gray-300 appearance-none" onchange="updateVideoOptions()">
+                                <!-- Options will be populated by JS based on mode -->
+                            </select>
+                            <i class="fa-solid fa-chevron-down absolute right-3 top-3 text-gray-600 text-xs pointer-events-none"></i>
                         </div>
                     </div>
                     
-                    <!-- Audio Checkbox -->
-                    <div id="audioContainer" class="bg-[#131315] rounded-xl border border-white/5 p-4">
+                    <!-- Video Resolution Selection -->
+                    <div id="videoResolutionArea" class="space-y-1 hidden">
+                        <label class="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Çözünürlük</label>
+                        <div id="videoResolutionOptions" class="grid grid-cols-2 gap-2">
+                            <label class="cursor-pointer">
+                                <input type="radio" name="video_resolution" value="512p" class="peer hidden">
+                                <div class="bg-[#131315] border border-white/10 rounded-lg py-2 text-center text-[10px] text-gray-400 peer-checked:bg-indigo-600 peer-checked:text-white peer-checked:border-transparent transition hover:bg-white/5">512p</div>
+                            </label>
+                            <label class="cursor-pointer">
+                                <input type="radio" name="video_resolution" value="720p" class="peer hidden" checked>
+                                <div class="bg-[#131315] border border-white/10 rounded-lg py-2 text-center text-[10px] text-gray-400 peer-checked:bg-indigo-600 peer-checked:text-white peer-checked:border-transparent transition hover:bg-white/5">720p</div>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <!-- Video Duration Selection -->
+                    <div id="videoDurationArea" class="space-y-1 hidden">
+                        <label class="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Video Süresi</label>
+                        <div id="videoDurationOptions" class="grid grid-cols-2 gap-2">
+                            <label class="cursor-pointer">
+                                <input type="radio" name="video_duration" value="5" class="peer hidden" checked>
+                                <div class="bg-[#131315] border border-white/10 rounded-lg py-2 text-center text-[10px] text-gray-400 peer-checked:bg-indigo-600 peer-checked:text-white peer-checked:border-transparent transition hover:bg-white/5">5 saniye</div>
+                            </label>
+                            <label class="cursor-pointer">
+                                <input type="radio" name="video_duration" value="10" class="peer hidden">
+                                <div class="bg-[#131315] border border-white/10 rounded-lg py-2 text-center text-[10px] text-gray-400 peer-checked:bg-indigo-600 peer-checked:text-white peer-checked:border-transparent transition hover:bg-white/5">10 saniye</div>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <!-- Video Aspect Ratio - 2 options (16:9, 9:16) -->
+                    <div id="videoAspectRatio2" class="space-y-1 hidden">
+                        <label class="text-[10px] font-bold text-gray-500 uppercase tracking-widest">En Boy Oranı</label>
+                        <div class="grid grid-cols-2 gap-2">
+                            <label class="cursor-pointer">
+                                <input type="radio" name="video_size" value="SIXTEEN_BY_NINE" class="peer hidden" checked>
+                                <div class="bg-[#131315] border border-white/10 rounded-lg py-2 text-center text-[10px] text-gray-400 peer-checked:bg-indigo-600 peer-checked:text-white peer-checked:border-transparent transition hover:bg-white/5">16:9</div>
+                            </label>
+                            <label class="cursor-pointer">
+                                <input type="radio" name="video_size" value="NINE_BY_SIXTEEN" class="peer hidden">
+                                <div class="bg-[#131315] border border-white/10 rounded-lg py-2 text-center text-[10px] text-gray-400 peer-checked:bg-indigo-600 peer-checked:text-white peer-checked:border-transparent transition hover:bg-white/5">9:16</div>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <!-- Video Aspect Ratio - 7 options (for Quality V2.0 TXT) -->
+                    <div id="videoAspectRatio7" class="space-y-1 hidden">
+                        <label class="text-[10px] font-bold text-gray-500 uppercase tracking-widest">En Boy Oranı</label>
+                        <div class="grid grid-cols-4 gap-2">
+                            <label class="cursor-pointer">
+                                <input type="radio" name="video_size" value="SIXTEEN_BY_NINE" class="peer hidden" checked>
+                                <div class="bg-[#131315] border border-white/10 rounded-lg py-2 text-center text-[10px] text-gray-400 peer-checked:bg-indigo-600 peer-checked:text-white peer-checked:border-transparent transition hover:bg-white/5">16:9</div>
+                            </label>
+                            <label class="cursor-pointer">
+                                <input type="radio" name="video_size" value="NINE_BY_SIXTEEN" class="peer hidden">
+                                <div class="bg-[#131315] border border-white/10 rounded-lg py-2 text-center text-[10px] text-gray-400 peer-checked:bg-indigo-600 peer-checked:text-white peer-checked:border-transparent transition hover:bg-white/5">9:16</div>
+                            </label>
+                            <label class="cursor-pointer">
+                                <input type="radio" name="video_size" value="ONE_BY_ONE" class="peer hidden">
+                                <div class="bg-[#131315] border border-white/10 rounded-lg py-2 text-center text-[10px] text-gray-400 peer-checked:bg-indigo-600 peer-checked:text-white peer-checked:border-transparent transition hover:bg-white/5">1:1</div>
+                            </label>
+                            <label class="cursor-pointer">
+                                <input type="radio" name="video_size" value="FOUR_BY_THREE" class="peer hidden">
+                                <div class="bg-[#131315] border border-white/10 rounded-lg py-2 text-center text-[10px] text-gray-400 peer-checked:bg-indigo-600 peer-checked:text-white peer-checked:border-transparent transition hover:bg-white/5">4:3</div>
+                            </label>
+                            <label class="cursor-pointer">
+                                <input type="radio" name="video_size" value="THREE_BY_FOUR" class="peer hidden">
+                                <div class="bg-[#131315] border border-white/10 rounded-lg py-2 text-center text-[10px] text-gray-400 peer-checked:bg-indigo-600 peer-checked:text-white peer-checked:border-transparent transition hover:bg-white/5">3:4</div>
+                            </label>
+                            <label class="cursor-pointer">
+                                <input type="radio" name="video_size" value="TWENTY_ONE_BY_NINE" class="peer hidden">
+                                <div class="bg-[#131315] border border-white/10 rounded-lg py-2 text-center text-[10px] text-gray-400 peer-checked:bg-indigo-600 peer-checked:text-white peer-checked:border-transparent transition hover:bg-white/5">21:9</div>
+                            </label>
+                            <label class="cursor-pointer">
+                                <input type="radio" name="video_size" value="NINE_BY_TWENTY_ONE" class="peer hidden">
+                                <div class="bg-[#131315] border border-white/10 rounded-lg py-2 text-center text-[10px] text-gray-400 peer-checked:bg-indigo-600 peer-checked:text-white peer-checked:border-transparent transition hover:bg-white/5">9:21</div>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <!-- Audio Checkbox (Only for Quality V2.5 IMG) -->
+                    <div id="audioContainer" class="bg-[#131315] rounded-xl border border-white/5 p-4 hidden">
                         <label class="flex items-center justify-between cursor-pointer">
                             <div>
                                 <span class="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Ses Oluştur</span>
@@ -246,22 +322,23 @@
                             </div>
                         </label>
                     </div>
-
-                    <!-- Video Aspect Ratio (For Text-to-Video) -->
-                    <div id="videoAspectRatioArea" class="space-y-1 hidden">
-                         <label class="text-[10px] font-bold text-gray-500 uppercase tracking-widest">En Boy Oranı</label>
-                         <div class="grid grid-cols-2 gap-2">
-                             <label class="cursor-pointer">
-                                 <input type="radio" name="video_size" value="SIXTEEN_BY_NINE" class="peer hidden" checked>
-                                 <div class="bg-[#131315] border border-white/10 rounded-lg py-2 text-center text-[10px] text-gray-400 peer-checked:bg-indigo-600 peer-checked:text-white peer-checked:border-transparent transition hover:bg-white/5">16:9</div>
-                             </label>
-                             <label class="cursor-pointer">
-                                 <input type="radio" name="video_size" value="NINE_BY_SIXTEEN" class="peer hidden">
-                                 <div class="bg-[#131315] border border-white/10 rounded-lg py-2 text-center text-[10px] text-gray-400 peer-checked:bg-indigo-600 peer-checked:text-white peer-checked:border-transparent transition hover:bg-white/5">9:16</div>
-                             </label>
-                         </div>
+                    
+                    <!-- AI Prompt Switch -->
+                    <div id="aiPromptContainer" class="bg-[#131315] rounded-xl border border-white/5 p-4">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <label class="text-[10px] font-bold text-gray-500 uppercase tracking-widest">AI Prompt</label>
+                                <p class="text-[9px] text-gray-600 mt-0.5">Yapay zeka ile prompt iyileştirme</p>
+                            </div>
+                            <div class="relative">
+                                <input type="checkbox" id="aiPromptSwitch" name="ai_prompt" class="sr-only peer">
+                                <div class="w-11 h-6 bg-gray-700 rounded-full peer peer-checked:bg-indigo-600 transition-colors cursor-pointer" onclick="document.getElementById('aiPromptSwitch').click()"></div>
+                                <div class="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-5 pointer-events-none"></div>
+                            </div>
+                        </div>
                     </div>
                 </div>
+
 
                 <!-- Hidden mode input -->
                 <input type="hidden" name="task_mode" id="taskModeInput" value="text">
@@ -635,26 +712,160 @@
                 videoOptionsArea.classList.remove('hidden');
                 imageSettingsArea.classList.add('hidden');
                 
-                const aiPromptContainer = document.getElementById('aiPromptContainer');
-                const audioContainer = document.getElementById('audioContainer');
-                const videoRatioArea = document.getElementById('videoAspectRatioArea');
+                // Populate model dropdown based on mode
+                const modelSelect = document.getElementById('videoModelSelect');
+                modelSelect.innerHTML = '';
                 
                 if(mode === 'text-video') {
-                    // Metinden Video: AI Prompt ve Ses gizli, Oran açık
-                    aiPromptContainer.classList.add('hidden');
-                    audioContainer.classList.add('hidden');
-                    videoRatioArea.classList.remove('hidden');
+                    // Text-to-Video models
+                    modelSelect.innerHTML = `
+                        <option value="quality_v20_txt">🎬 Quality V2.0</option>
+                        <option value="master_v20_txt">⚡ Master V2.0</option>
+                        <option value="sora2_txt">🌟 Sora 2</option>
+                    `;
                 } else {
-                    // Resimden Video: AI Prompt ve Ses açık, Oran gizli (resimden alır)
-                    aiPromptContainer.classList.remove('hidden');
-                    audioContainer.classList.remove('hidden');
-                    videoRatioArea.classList.add('hidden');
+                    // Image-to-Video models
+                    modelSelect.innerHTML = `
+                        <option value="quality_v20_img">🎬 Quality V2.0</option>
+                        <option value="quality_v25_img">🎬 Quality V2.5</option>
+                        <option value="master_v20_img">⚡ Master V2.0</option>
+                        <option value="sora2_img">🌟 Sora 2</option>
+                    `;
                 }
+                
+                // Update video options based on selected model
+                updateVideoOptions();
             } else {
                 videoOptionsArea.classList.add('hidden');
                 imageSettingsArea.classList.remove('hidden');
             }
         }
+        
+        // Video model configuration
+        const VIDEO_MODEL_CONFIG = {
+            // IMG2IMG (Image-to-Video) Models
+            'quality_v20_img': {
+                hasAudio: false,
+                hasResolution: true,
+                resolutions: ['512p', '720p'],
+                hasDuration: true,
+                durations: [5, 10],
+                hasAspectRatio: false,
+                hasAiPrompt: true
+            },
+            'quality_v25_img': {
+                hasAudio: true,
+                hasResolution: true,
+                resolutions: ['512p', '720p'],
+                hasDuration: true,
+                durations: [5, 10],
+                hasAspectRatio: false,
+                hasAiPrompt: true
+            },
+            'master_v20_img': {
+                hasAudio: false,
+                hasResolution: false,
+                fixedResolution: '720p',
+                hasDuration: false,
+                fixedDuration: 8,
+                hasAspectRatio: true,
+                aspectRatioCount: 2,
+                hasAiPrompt: true
+            },
+            'sora2_img': {
+                hasAudio: false,
+                hasResolution: false,
+                fixedResolution: '720p',
+                hasDuration: false,
+                fixedDuration: 10,
+                hasAspectRatio: true,
+                aspectRatioCount: 2,
+                hasAiPrompt: true
+            },
+            // TXT2IMG (Text-to-Video) Models
+            'quality_v20_txt': {
+                hasAudio: false,
+                hasResolution: false,
+                fixedResolution: '480p',
+                hasDuration: true,
+                durations: [5, 10],
+                hasAspectRatio: true,
+                aspectRatioCount: 7,
+                hasAiPrompt: true
+            },
+            'master_v20_txt': {
+                hasAudio: false,
+                hasResolution: false,
+                fixedResolution: '720p',
+                hasDuration: false,
+                fixedDuration: 8,
+                hasAspectRatio: true,
+                aspectRatioCount: 2,
+                hasAiPrompt: true
+            },
+            'sora2_txt': {
+                hasAudio: false,
+                hasResolution: false,
+                fixedResolution: '720p',
+                hasDuration: false,
+                fixedDuration: 10,
+                hasAspectRatio: true,
+                aspectRatioCount: 2,
+                hasAiPrompt: true
+            }
+        };
+        
+        function updateVideoOptions() {
+            const modelSelect = document.getElementById('videoModelSelect');
+            const selectedModel = modelSelect.value;
+            const config = VIDEO_MODEL_CONFIG[selectedModel];
+            
+            if (!config) return;
+            
+            // Audio Container
+            const audioContainer = document.getElementById('audioContainer');
+            if (config.hasAudio) {
+                audioContainer.classList.remove('hidden');
+            } else {
+                audioContainer.classList.add('hidden');
+            }
+            
+            // Resolution Area
+            const resolutionArea = document.getElementById('videoResolutionArea');
+            if (config.hasResolution) {
+                resolutionArea.classList.remove('hidden');
+            } else {
+                resolutionArea.classList.add('hidden');
+            }
+            
+            // Duration Area
+            const durationArea = document.getElementById('videoDurationArea');
+            if (config.hasDuration) {
+                durationArea.classList.remove('hidden');
+            } else {
+                durationArea.classList.add('hidden');
+            }
+            
+            // Aspect Ratio Areas
+            const aspectRatio2 = document.getElementById('videoAspectRatio2');
+            const aspectRatio7 = document.getElementById('videoAspectRatio7');
+            
+            aspectRatio2.classList.add('hidden');
+            aspectRatio7.classList.add('hidden');
+            
+            if (config.hasAspectRatio) {
+                if (config.aspectRatioCount === 7) {
+                    aspectRatio7.classList.remove('hidden');
+                } else {
+                    aspectRatio2.classList.remove('hidden');
+                }
+            }
+            
+            // AI Prompt Container (always visible for video modes)
+            const aiPromptContainer = document.getElementById('aiPromptContainer');
+            aiPromptContainer.classList.remove('hidden');
+        }
+
 
         function handleFiles(input) {
             const files = input.files;
@@ -814,22 +1025,37 @@
             }
             if(!formData.get('prompt')) return alert("Prompt girmelisiniz!");
 
-            // Clean up formData before sending
-            if(mode === 'text-video') {
-                // For text-video, only prompt and video_size matter
-                formData.delete('ai_prompt');
-                formData.delete('audio');
+            // Clean up formData before sending based on mode
+            const isVideoMode = mode === 'text-video' || mode === 'image-video';
+            
+            if(isVideoMode) {
+                // Video mode - get video model config
+                const videoModel = formData.get('video_model');
+                const config = VIDEO_MODEL_CONFIG[videoModel];
+                
+                // Delete image mode fields
                 formData.delete('image_size');
                 formData.delete('model_version');
                 formData.delete('resolution');
-            } else if(mode === 'image-video') {
-                // For image-video, prompt, ai_prompt, audio and image_size (source) matter
-                formData.delete('video_size');
-                formData.delete('model_version');
-                formData.delete('resolution');
+                
+                // Add fixed values if needed
+                if (config && config.fixedResolution) {
+                    formData.set('video_resolution', config.fixedResolution);
+                }
+                if (config && config.fixedDuration) {
+                    formData.set('video_duration', config.fixedDuration.toString());
+                }
+                
+                // Remove audio if model doesn't support it
+                if (!config || !config.hasAudio) {
+                    formData.delete('audio');
+                }
             } else {
-                // For image modes, video relevant options are deleted
+                // Image mode - delete video relevant options
                 formData.delete('video_size');
+                formData.delete('video_model');
+                formData.delete('video_resolution');
+                formData.delete('video_duration');
                 formData.delete('ai_prompt');
                 formData.delete('audio');
             }
@@ -851,6 +1077,7 @@
                 updateStatus(); 
             }
         }
+
 
         async function deleteTask(taskId) {
             // UI optimistic update
