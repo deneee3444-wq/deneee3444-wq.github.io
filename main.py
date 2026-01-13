@@ -5,6 +5,8 @@ import uuid
 import base64
 import threading
 import requests
+from PIL import Image
+from io import BytesIO
 from flask import Flask, render_template, request, jsonify, Response, stream_with_context, session
 import google.generativeai as genai
 
@@ -189,6 +191,73 @@ def refresh_quota(token):
         print(f"Kota çekme hatası: {e}")
         return 0
 
+def resize_image_for_api(image_path):
+    """
+    Resmi boyutlandırır ve BytesIO olarak döndürür (API'ye göndermek için).
+    Eğer herhangi bir kenar 3000'i aşıyorsa, en uzun kenarı 3000'e indirir.
+    Orijinal format korunur, kalite kaybı minimize edilir.
+    """
+    try:
+        img = Image.open(image_path)
+        
+        # Orijinal formatı sakla
+        original_format = img.format or 'PNG'
+        
+        # Handle orientation if necessary (EXIF)
+        try:
+            from PIL import ImageOps
+            img = ImageOps.exif_transpose(img)
+        except:
+            pass
+
+        width, height = img.size
+        print(f"Orijinal boyut: {width} x {height}")
+        
+        max_dimension = max(width, height)
+        
+        if max_dimension > 3000:
+            scale = 3000 / max_dimension
+            new_width = round(width * scale)
+            new_height = round(height * scale)
+            
+            img = img.resize((new_width, new_height), Image.LANCZOS)
+            print(f"Yeni boyut: {new_width} x {new_height}")
+        else:
+            print("Boyutlandırma gerekmiyor (3000 veya altında)")
+        
+        img_buffer = BytesIO()
+        
+        # Orijinal formatı koru
+        if original_format == 'JPEG':
+            # RGB'ye dönüştür (JPG alpha channel desteklemez)
+            if img.mode in ('RGBA', 'LA', 'P'):
+                rgb_img = Image.new('RGB', img.size, (255, 255, 255))
+                if img.mode == 'P':
+                    img = img.convert('RGBA')
+                rgb_img.paste(img, mask=img.split()[-1] if img.mode in ('RGBA', 'LA') else None)
+                img = rgb_img
+            
+            # Yüksek kalite JPG
+            img.save(img_buffer, format='JPEG', quality=100, optimize=True)
+        elif original_format == 'PNG':
+            # PNG için optimize edilmiş kaydetme
+            img.save(img_buffer, format='PNG', optimize=True)
+        else:
+            # Diğer formatlar için orijinal format
+            img.save(img_buffer, format=original_format)
+        
+        img_buffer.seek(0)
+        
+        # Dosya boyutunu göster
+        file_size_mb = img_buffer.getbuffer().nbytes / (1024 * 1024)
+        print(f"Dosya boyutu: {file_size_mb:.2f} MB (Format: {original_format})")
+        
+        return img_buffer
+        
+    except Exception as e:
+        print(f"Resim işleme hatası ({image_path}): {e}")
+        return None
+
 def process_task_thread(task_id, file_paths, form_data):
     if task_id not in STATE['tasks']: return
 
@@ -212,10 +281,14 @@ def process_task_thread(task_id, file_paths, form_data):
             for f_path in file_paths:
                 if task_id not in STATE['tasks']: return
                 try:
-                    with open(f_path, "rb") as f:
-                        files = {"file": (os.path.basename(f_path), f, "image/png")}
-                        upload_data = {"width": "1024", "height": "1536"}
-                        resp_upload = requests.post(URL_UPLOAD, headers=upload_headers, files=files, data=upload_data)
+                    img_buffer = resize_image_for_api(f_path)
+                    if not img_buffer:
+                        log_msg(f"Resim işlenemedi: {os.path.basename(f_path)}")
+                        continue
+                    
+                    files = {"file": (os.path.basename(f_path), img_buffer, "image/png")}
+                    upload_data = {"width": "1024", "height": "1536"}
+                    resp_upload = requests.post(URL_UPLOAD, headers=upload_headers, files=files, data=upload_data)
                     
                     if resp_upload.status_code in [200, 201]:
                         uid = resp_upload.json()['data']['data']['id']
@@ -426,10 +499,15 @@ def process_video_task_thread(task_id, file_paths, form_data):
             }
             
             try:
-                with open(file_path, "rb") as f:
-                    files = {"file": (os.path.basename(file_path), f, "image/png")}
-                    upload_data = {"width": "1024", "height": "1536"}
-                    resp_upload = requests.post(URL_UPLOAD, headers=upload_headers, files=files, data=upload_data)
+                img_buffer = resize_image_for_api(file_path)
+                if not img_buffer:
+                    log_msg("Resim işlenemedi!")
+                    STATE['tasks'][task_id]['status'] = 'failed'
+                    return
+
+                files = {"file": (os.path.basename(file_path), img_buffer, "image/png")}
+                upload_data = {"width": "1024", "height": "1536"}
+                resp_upload = requests.post(URL_UPLOAD, headers=upload_headers, files=files, data=upload_data)
                 
                 if resp_upload.status_code not in [200, 201]:
                     log_msg(f"Upload hatası: {resp_upload.status_code}")
