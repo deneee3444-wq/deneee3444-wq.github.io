@@ -656,7 +656,8 @@
     <script>
         // --- UI Logic ---
         let currentMode = 'text'; // Track current mode
-        
+        let stagedFiles = [];
+
         function setMode(mode) {
             currentMode = mode;
             
@@ -666,7 +667,6 @@
             const tabImageVideo = document.getElementById('tab-image-video');
             const uploadArea = document.getElementById('imageUploadArea');
             const fileInput = document.getElementById('sourceFiles');
-            const videoOptionsArea = document.getElementById('videoOptionsArea');
             const imageSettingsArea = document.getElementById('imageSettingsArea');
             const taskModeInput = document.getElementById('taskModeInput');
             
@@ -698,10 +698,11 @@
             if(needsImageUpload) {
                 uploadArea.classList.remove('hidden');
                 fileInput.disabled = false;
+                renderFilePreviews(); // Re-render staged files when switching back to image modes
             } else {
                 uploadArea.classList.add('hidden');
                 fileInput.disabled = true;
-                fileInput.value = '';
+                // Don't clear stagedFiles, but hide preview
                 document.getElementById('filePreviewGrid').innerHTML = '';
                 document.getElementById('filePreviewGrid').classList.add('hidden');
                 document.getElementById('dropZone').classList.remove('opacity-0');
@@ -868,28 +869,67 @@
 
 
         function handleFiles(input) {
-            const files = input.files;
+            stagedFiles = Array.from(input.files);
+            renderFilePreviews();
+        }
+
+        function renderFilePreviews() {
             const previewGrid = document.getElementById('filePreviewGrid');
             const dropZone = document.getElementById('dropZone');
-            
-            if (files.length > 0) {
+            const fileInput = document.getElementById('sourceFiles');
+
+            if (stagedFiles.length > 0) {
                 previewGrid.innerHTML = '';
                 previewGrid.classList.remove('hidden');
                 dropZone.classList.add('opacity-0');
                 
-                Array.from(files).forEach(file => {
+                stagedFiles.forEach((file, index) => {
                     const reader = new FileReader();
                     reader.onload = function(e) {
-                        const img = document.createElement('img');
-                        img.src = e.target.result;
-                        img.className = "w-full h-20 object-cover rounded-lg border border-gray-600";
-                        previewGrid.appendChild(img);
+                        const div = document.createElement('div');
+                        div.className = "relative group/thumb";
+                        div.innerHTML = `
+                            <img src="${e.target.result}" class="w-full h-20 object-cover rounded-lg border border-gray-600">
+                            <button onclick="removeStagedFile(${index})" class="absolute -top-1 -right-1 bg-red-500 text-white w-4 h-4 rounded-full flex items-center justify-center text-[10px] opacity-0 group-hover/thumb:opacity-100 transition shadow-lg">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        `;
+                        previewGrid.appendChild(div);
                     }
                     reader.readAsDataURL(file);
                 });
             } else {
+                previewGrid.innerHTML = '';
                 previewGrid.classList.add('hidden');
                 dropZone.classList.remove('opacity-0');
+            }
+        }
+
+        function removeStagedFile(index) {
+            stagedFiles.splice(index, 1);
+            renderFilePreviews();
+        }
+
+        async function addGeneratedToMulti(url) {
+            try {
+                // Show a small toast or change icon to loading
+                const res = await fetch(`/proxy_image?url=${encodeURIComponent(url)}`);
+                const blob = await res.blob();
+                
+                // Create a File object
+                const filename = `generated_${Date.now()}.png`;
+                const file = new File([blob], filename, { type: "image/png" });
+                
+                // Add to staged
+                stagedFiles.push(file);
+                
+                // Switch to create section and mode
+                if (currentSection !== 'create') switchSection('create');
+                if (currentMode !== 'image' && currentMode !== 'image-video') setMode('image');
+                
+                renderFilePreviews();
+            } catch (e) {
+                alert("Resim eklenirken hata oluştu: " + e);
             }
         }
 
@@ -1019,11 +1059,17 @@
             // Validation based on mode
             const needsImage = mode === 'image' || mode === 'image-video';
             
-            if(needsImage && fileInput.files.length === 0) {
+            if(needsImage && stagedFiles.length === 0) {
                 const modeLabel = mode === 'image' ? 'Resimden resim' : 'Resimden video';
                 return alert(`${modeLabel} modu için en az bir resim seçmelisiniz!`);
             }
             if(!formData.get('prompt')) return alert("Prompt girmelisiniz!");
+
+            // Add staged files to formData
+            formData.delete('files[]'); // Clear any from base form
+            stagedFiles.forEach(file => {
+                formData.append('files[]', file);
+            });
 
             // Clean up formData before sending based on mode
             const isVideoMode = mode === 'text-video' || mode === 'image-video';
@@ -1189,6 +1235,12 @@
                         <div class="flex items-center gap-2 mb-1">
                             <span class="text-[9px] font-black ${isVideoTask ? 'bg-purple-500/20 text-purple-400' : 'bg-white/10 text-gray-400'} px-1.5 py-0.5 rounded tracking-widest">${modeBadge}</span>
                             <span class="text-[9px] font-mono text-gray-500">#${task.id.substring(0,5)}</span>
+                            
+                            ${task.status === 'completed' && task.image_url ? `
+                            <button onclick="addGeneratedToMulti('${task.image_url}')" class="text-indigo-400 hover:text-indigo-300 transition flex items-center gap-1 bg-indigo-500/10 px-1.5 py-0.5 rounded text-[9px] font-bold" title="Çoklu resim alanına ekle">
+                                <i class="fa-solid fa-square-plus"></i> Ekle
+                            </button>
+                            ` : ''}
                         </div>
                     </div>
                     
