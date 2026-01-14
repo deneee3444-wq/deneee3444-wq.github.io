@@ -1571,12 +1571,22 @@
                 if(pageFavs.length === 0) {
                     grid.innerHTML = '<div class="col-span-full flex flex-col items-center justify-center text-gray-500 py-20"><i class="fa-solid fa-heart-crack text-4xl mb-3 opacity-50"></i><p class="text-sm">Henüz favori eklenmedi</p></div>';
                 } else {
-                    grid.innerHTML = pageFavs.map(fav => `
-                        <div class="task-card-enter bg-[#131315] p-5 rounded-2xl border border-gray-800 shadow-xl hover:shadow-2xl hover:border-white/10 transition duration-300 flex flex-col relative group">
+                    grid.innerHTML = pageFavs.map(fav => {
+                        const isVideo = !!fav.video_url;
+                        let borderClass = isVideo ? 'border-purple-500/30 shadow-purple-900/10' : 'border-indigo-500/30 shadow-indigo-900/10';
+                        
+                        return `
+                        <div class="task-card-enter bg-[#131315] p-5 rounded-2xl border ${borderClass} shadow-xl hover:shadow-2xl hover:border-white/10 transition duration-300 flex flex-col relative group">
                             <div class="flex justify-between items-start relative z-10 mb-1">
                                 <div>
                                     <div class="flex items-center gap-2">
-                                        <span class="text-[9px] font-black ${fav.video_url ? 'bg-purple-500/20 text-purple-400' : 'bg-white/10 text-gray-400'} px-1.5 py-0.5 rounded tracking-widest">${fav.video_url ? 'VID' : 'FAV'}</span>
+                                        <span class="text-[9px] font-black ${isVideo ? 'bg-purple-500/20 text-purple-400' : 'bg-white/10 text-gray-400'} px-1.5 py-0.5 rounded tracking-widest">${isVideo ? 'VID' : 'FAV'}</span>
+                                        
+                                        ${fav.image_url ? `
+                                        <button onclick="addGeneratedToMulti('${fav.image_url}')" class="text-gray-500 hover:text-green-400 transition flex items-center bg-green-500/10 px-2 py-1 rounded text-xs" title="Çoklu resim alanına aktar">
+                                            <i class="fa-solid fa-arrow-right"></i>
+                                        </button>
+                                        ` : ''}
                                     </div>
                                 </div>
                                 
@@ -1596,7 +1606,7 @@
                             </div>
                             
                             <div class="relative aspect-[9/16] mt-3 rounded-lg overflow-hidden group/img border border-white/10 bg-black">
-                                ${fav.video_url ? 
+                                ${isVideo ? 
                                     `<video src="${fav.video_url}" class="w-full h-full object-cover" controls muted poster="${fav.image_url || ''}"></video>` :
                                     (fav.image_url ? 
                                         `<img src="${fav.image_url}" class="w-full h-full object-cover transition duration-700 group-hover/img:scale-110">` :
@@ -1613,15 +1623,10 @@
                                     <a href="${fav.video_url || fav.image_url}" download class="bg-indigo-600 text-white px-4 py-2 rounded-full text-xs font-bold hover:bg-indigo-500 transition transform hover:scale-105 flex items-center gap-2">
                                         <i class="fa-solid fa-download"></i> İndir
                                     </a>
-                                    ${fav.image_url ? `
-                                    <button onclick="addGeneratedToMulti('${fav.image_url}')" class="bg-green-500/20 text-green-400 px-4 py-2 rounded-full text-xs font-bold hover:bg-green-500/30 transition transform hover:scale-105 flex items-center gap-2" title="Çoklu resim alanına aktar">
-                                        <i class="fa-solid fa-arrow-right"></i>
-                                    </button>
-                                    ` : ''}
                                 </div>
                             </div>
                         </div>
-                    `).join('');
+                    `; }).join('');
                 }
                 
                 // Show/hide pagination - only if there are favorites
