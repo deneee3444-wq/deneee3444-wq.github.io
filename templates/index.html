@@ -869,35 +869,37 @@
 
 
         function handleFiles(input) {
-            stagedFiles = Array.from(input.files);
+            if (input.files.length === 0) {
+                stagedFiles = [];
+            } else {
+                stagedFiles = Array.from(input.files);
+            }
             renderFilePreviews();
         }
 
         function renderFilePreviews() {
             const previewGrid = document.getElementById('filePreviewGrid');
             const dropZone = document.getElementById('dropZone');
-            const fileInput = document.getElementById('sourceFiles');
 
             if (stagedFiles.length > 0) {
-                previewGrid.innerHTML = '';
+                previewGrid.innerHTML = ''; // Clear
                 previewGrid.classList.remove('hidden');
                 dropZone.classList.add('opacity-0');
                 
+                let html = '';
                 stagedFiles.forEach((file, index) => {
-                    const reader = new FileReader();
-                    reader.onload = function(e) {
-                        const div = document.createElement('div');
-                        div.className = "relative group/thumb";
-                        div.innerHTML = `
-                            <img src="${e.target.result}" class="w-full h-20 object-cover rounded-lg border border-gray-600">
+                    // Use URL.createObjectURL for synchronous rendering to avoid race conditions
+                    const url = URL.createObjectURL(file);
+                    html += `
+                        <div class="relative group/thumb">
+                            <img src="${url}" class="w-full h-20 object-cover rounded-lg border border-gray-600" onload="URL.revokeObjectURL(this.src)">
                             <button onclick="removeStagedFile(${index})" class="absolute -top-1 -right-1 bg-red-500 text-white w-4 h-4 rounded-full flex items-center justify-center text-[10px] opacity-0 group-hover/thumb:opacity-100 transition shadow-lg">
                                 <i class="fa-solid fa-xmark"></i>
                             </button>
-                        `;
-                        previewGrid.appendChild(div);
-                    }
-                    reader.readAsDataURL(file);
+                        </div>
+                    `;
                 });
+                previewGrid.innerHTML = html;
             } else {
                 previewGrid.innerHTML = '';
                 previewGrid.classList.add('hidden');
@@ -923,11 +925,19 @@
                 // Add to staged
                 stagedFiles.push(file);
                 
+                // Sync with file input for consistent behavior when clicking and cancelling
+                const container = new DataTransfer();
+                stagedFiles.forEach(f => container.items.add(f));
+                document.getElementById('sourceFiles').files = container.files;
+                
                 // Switch to create section and mode
                 if (currentSection !== 'create') switchSection('create');
-                if (currentMode !== 'image' && currentMode !== 'image-video') setMode('image');
-                
-                renderFilePreviews();
+                if (currentMode !== 'image' && currentMode !== 'image-video') {
+                    setMode('image');
+                } else {
+                    // Only call if mode didn't change (setMode already calls it)
+                    renderFilePreviews();
+                }
             } catch (e) {
                 alert("Resim eklenirken hata oluştu: " + e);
             }
@@ -1237,8 +1247,8 @@
                             <span class="text-[9px] font-mono text-gray-500">#${task.id.substring(0,5)}</span>
                             
                             ${task.status === 'completed' && task.image_url ? `
-                            <button onclick="addGeneratedToMulti('${task.image_url}')" class="text-indigo-400 hover:text-indigo-300 transition flex items-center gap-1 bg-indigo-500/10 px-1.5 py-0.5 rounded text-[9px] font-bold" title="Çoklu resim alanına ekle">
-                                <i class="fa-solid fa-square-plus"></i> Ekle
+                            <button onclick="addGeneratedToMulti('${task.image_url}')" class="text-gray-500 hover:text-green-400 transition flex items-center bg-green-500/10 px-2 py-1 rounded text-xs" title="Çoklu resim alanına aktar">
+                                <i class="fa-solid fa-arrow-right"></i>
                             </button>
                             ` : ''}
                         </div>
@@ -1314,7 +1324,11 @@
                         const newContent = getCardHTML(task);
                         
                         let borderClass = 'border-gray-800';
-                        if(task.status === 'completed') borderClass = 'border-green-500/20 shadow-green-900/10';
+                        const isVideo = task.mode && (task.mode.includes('Video') || task.mode.includes('video'));
+                        
+                        if(task.status === 'completed') {
+                            borderClass = isVideo ? 'border-purple-500/30 shadow-purple-900/10' : 'border-indigo-500/30 shadow-indigo-900/10';
+                        }
                         if(task.status === 'failed') borderClass = 'border-red-500/20 shadow-red-900/10';
                         if(task.status === 'waiting_confirmation') borderClass = 'border-orange-500/40 shadow-orange-900/20';
 
@@ -1599,6 +1613,11 @@
                                     <a href="${fav.video_url || fav.image_url}" download class="bg-indigo-600 text-white px-4 py-2 rounded-full text-xs font-bold hover:bg-indigo-500 transition transform hover:scale-105 flex items-center gap-2">
                                         <i class="fa-solid fa-download"></i> İndir
                                     </a>
+                                    ${fav.image_url ? `
+                                    <button onclick="addGeneratedToMulti('${fav.image_url}')" class="bg-green-500/20 text-green-400 px-4 py-2 rounded-full text-xs font-bold hover:bg-green-500/30 transition transform hover:scale-105 flex items-center gap-2" title="Çoklu resim alanına aktar">
+                                        <i class="fa-solid fa-arrow-right"></i>
+                                    </button>
+                                    ` : ''}
                                 </div>
                             </div>
                         </div>
@@ -1936,7 +1955,11 @@
                     const newContent = getCardHTML(task);
                     
                     let borderClass = 'border-gray-800';
-                    if(task.status === 'completed') borderClass = 'border-green-500/20 shadow-green-900/10';
+                    const isVid = task.mode && (task.mode.includes('Video') || task.mode.includes('video'));
+                    
+                    if(task.status === 'completed') {
+                        borderClass = isVid ? 'border-purple-500/30 shadow-purple-900/10' : 'border-indigo-500/30 shadow-indigo-900/10';
+                    }
                     if(task.status === 'failed') borderClass = 'border-red-500/20 shadow-red-900/10';
                     if(task.status === 'waiting_confirmation') borderClass = 'border-orange-500/40 shadow-orange-900/20';
 
