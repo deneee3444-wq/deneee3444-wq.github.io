@@ -177,7 +177,8 @@ def login_and_get_token():
         else:
             raise Exception("Tüm hesaplar denendi, giriş yapılamadı.")
 
-def refresh_quota(token):
+def refresh_quota(token, email=None):
+    """Refreshes the global quota state. email is optional but recommended for synchronization."""
     headers = {"authorization": "Bearer " + token}
     try:
         resp = requests.get(URL_QUOTA, headers=headers)
@@ -185,7 +186,12 @@ def refresh_quota(token):
         quota_total = data['quota_count']
         quota_used = data['subscription_quota_used']
         remaining = quota_total - quota_used
-        STATE['active_quota'] = remaining
+        
+        # Only update global UI state if this is the currently active account in the UI
+        current_acc = get_current_account()
+        if email is None or (current_acc and current_acc['email'] == email):
+            STATE['active_quota'] = remaining
+            
         return remaining
     except Exception as e:
         print(f"Kota çekme hatası: {e}")
@@ -339,7 +345,7 @@ def process_task_thread(task_id, file_paths, form_data):
             resp_submit = requests.post(URL_SUBMIT, headers=submit_headers, json=payload)
             resp_json = resp_submit.json()
 
-            current_q = refresh_quota(token)
+            current_q = refresh_quota(token, acc['email'])
             
             error_code = 0
             if 'error' in resp_json and resp_json['error']:
@@ -351,11 +357,11 @@ def process_task_thread(task_id, file_paths, form_data):
                 safe_quota = current_q if isinstance(current_q, int) else 0
                 should_switch_and_delete = False
 
-                if safe_quota <= 0:
+                if safe_quota <= 0 or error_code == 10008:
                     should_switch_and_delete = True
-                    log_msg("Kota 0, hesap siliniyor ve geçiliyor...")
+                    log_msg(f"Kota yetersiz (Kod: {error_code}, Kalan: {safe_quota}), hesap siliniyor ve geçiliyor...")
                 else:
-                    log_msg(f"Kota ({safe_quota}) var ama hata. Onay bekleniyor...")
+                    log_msg(f"Hata oluştu (Kod: {error_code}, Kota: {safe_quota}). Onay bekleniyor...")
                     if task_id in STATE['tasks']:
                         STATE['tasks'][task_id]['status'] = 'waiting_confirmation'
                     
@@ -417,21 +423,21 @@ def process_task_thread(task_id, file_paths, form_data):
                             if task_state == 'FAIL':
                                 log_msg("API: Başarısız.")
                                 STATE['tasks'][task_id]['status'] = 'failed'
-                                refresh_quota(token)
+                                refresh_quota(token, acc['email'])
                                 return
                             image_urls = creation.get("noWaterMarkImageUrl", [])
                             if image_urls:
                                 STATE['tasks'][task_id]['image_url'] = image_urls[0]
                                 STATE['tasks'][task_id]['status'] = 'completed'
                                 log_msg("Tamamlandı!")
-                                refresh_quota(token)
+                                refresh_quota(token, acc['email'])
                                 return
                 if not found_match: pass
             except Exception as e: pass
             
         log_msg("Zaman aşımı.")
         STATE['tasks'][task_id]['status'] = 'failed'
-        refresh_quota(token)
+        refresh_quota(token, acc['email'])
 
     except Exception as e:
         log_msg(f"Kritik Hata: {str(e)}")
@@ -608,11 +614,11 @@ def process_video_task_thread(task_id, file_paths, form_data):
                     safe_quota = current_q if isinstance(current_q, int) else 0
                     should_switch_and_delete = False
 
-                    if safe_quota <= 0:
+                    if safe_quota <= 0 or error_code == 10008:
                         should_switch_and_delete = True
-                        log_msg("Kota 0, hesap siliniyor ve geçiliyor...")
+                        log_msg(f"Kota yetersiz (Kod: {error_code}, Kalan: {safe_quota}), hesap siliniyor ve geçiliyor...")
                     else:
-                        log_msg(f"Kota ({safe_quota}) var ama hata. Onay bekleniyor...")
+                        log_msg(f"Hata oluştu (Kod: {error_code}, Kota: {safe_quota}). Onay bekleniyor...")
                         if task_id in STATE['tasks']:
                             STATE['tasks'][task_id]['status'] = 'waiting_confirmation'
                         
@@ -650,7 +656,7 @@ def process_video_task_thread(task_id, file_paths, form_data):
                     target_task_id = resp_json.get('data', {}).get('data', {}).get('taskId')
                     log_msg(f"ID: {target_task_id}")
                     print(f"[VIDEO DEBUG] Target task ID: {target_task_id}")
-                    refresh_quota(token)
+                    refresh_quota(token, acc['email'])
                     break
             except Exception as e:
                 log_msg(f"Submit hatası: {str(e)}")
@@ -659,6 +665,15 @@ def process_video_task_thread(task_id, file_paths, form_data):
         
         log_msg("Video işleniyor...")
         
+        # Robust video URL extraction
+        def extract_v_url(obj):
+            v = obj.get('noWaterMarkVideoUrl') or obj.get('noWatermarkVideoUrl')
+            if not v:
+                creation = obj.get('detail', {}).get('creation', {})
+                v = creation.get('noWaterMarkVideoUrl') or creation.get('noWatermarkVideoUrl')
+            if isinstance(v, list) and v: return v[0]
+            return v
+
         # Poll for video completion
         attempt = 0
         while attempt < 9000:
@@ -690,22 +705,13 @@ def process_video_task_thread(task_id, file_paths, form_data):
                             break
                     
                     if target_video:
-                        # Robust video URL extraction
-                        def extract_v_url(obj):
-                            v = obj.get('noWaterMarkVideoUrl') or obj.get('noWatermarkVideoUrl')
-                            if not v:
-                                creation = obj.get('detail', {}).get('creation', {})
-                                v = creation.get('noWaterMarkVideoUrl') or creation.get('noWatermarkVideoUrl')
-                            if isinstance(v, list) and v: return v[0]
-                            return v
-                        
                         video_state = target_video.get('taskState', '')
                         video_url = extract_v_url(target_video)
                         
                         if video_state == 'FAIL':
                             log_msg("Video oluşturma başarısız!")
                             STATE['tasks'][task_id]['status'] = 'failed'
-                            refresh_quota(token)
+                            refresh_quota(token, acc['email'])
                             return
                         
                         if video_url:
@@ -717,8 +723,10 @@ def process_video_task_thread(task_id, file_paths, form_data):
                             
                             STATE['tasks'][task_id]['status'] = 'completed'
                             log_msg("Video tamamlandı!")
-                            refresh_quota(token)
+                            refresh_quota(token, acc['email'])
                             return
+                elif json_data.get('error'):
+                    log_msg(f"Sorgu hatası: {json_data['error'].get('message')}")
             except Exception as e:
                 if attempt <= 3:
                     print(f"[VIDEO DEBUG] Poll error: {str(e)}")
@@ -728,90 +736,7 @@ def process_video_task_thread(task_id, file_paths, form_data):
         
         log_msg("Video zaman aşımı.")
         STATE['tasks'][task_id]['status'] = 'failed'
-        refresh_quota(token)
-
-    except Exception as e:
-        log_msg(f"Kritik Hata: {str(e)}")
-        if task_id in STATE['tasks']: STATE['tasks'][task_id]['status'] = 'failed'
-        
-        log_msg("Video işleniyor...")
-        
-        # Poll for video completion
-        attempt = 0
-        while attempt < 9000:  # Max 10 minutes
-            if task_id not in STATE['tasks']: return
-            attempt += 1
-            time.sleep(2)
-            
-            try:
-                resp_poll = requests.get(URL_VIDEO_TASKS, headers=upload_headers)
-                json_data = resp_poll.json()
-                
-                if attempt == 1:
-                    print(f"[VIDEO DEBUG] First poll response structure: {str(json_data)[:500]}")
-                
-                # Check video tasks - try multiple possible paths
-                video_list = None
-                
-                # Try path: data.data.data (list)
-                if json_data.get('data', {}).get('data', {}).get('data'):
-                    video_list = json_data['data']['data']['data']
-                # Try path: data.data (if it's a list)
-                elif isinstance(json_data.get('data', {}).get('data'), list):
-                    video_list = json_data['data']['data']
-                # Try path: data (if it's a list)
-                elif isinstance(json_data.get('data'), list):
-                    video_list = json_data['data']
-                
-                if video_list:
-                    # Find our video by taskId
-                    target_video = None
-                    for video in video_list:
-                        if target_task_id and video.get('taskId') == target_task_id:
-                            target_video = video
-                            break
-                    
-                    if target_video:
-                        # Robust video URL extraction
-                        def extract_v_url(obj):
-                            v = obj.get('noWaterMarkVideoUrl') or obj.get('noWatermarkVideoUrl')
-                            if not v:
-                                creation = obj.get('detail', {}).get('creation', {})
-                                v = creation.get('noWaterMarkVideoUrl') or creation.get('noWatermarkVideoUrl')
-                            if isinstance(v, list) and v: return v[0]
-                            return v
-                        
-                        video_state = target_video.get('taskState', '')
-                        video_url = extract_v_url(target_video)
-                        
-                        if video_state == 'FAIL':
-                            log_msg("Video oluşturma başarısız!")
-                            STATE['tasks'][task_id]['status'] = 'failed'
-                            refresh_quota(token)
-                            return
-                        
-                        if video_url:
-                            STATE['tasks'][task_id]['video_url'] = video_url
-                            # Thumbnail capturing
-                            if not STATE['tasks'][task_id].get('image_url'):
-                                thumb = target_video.get('imageUrl') or target_video.get('thumbnailUrl') or target_video.get('videoCoverUrl')
-                                if thumb:
-                                    STATE['tasks'][task_id]['image_url'] = thumb
-                            
-                            STATE['tasks'][task_id]['status'] = 'completed'
-                            log_msg("Video tamamlandı!")
-                            refresh_quota(token)
-                            return
-            except Exception as e:
-                if attempt <= 3:
-                    print(f"[VIDEO DEBUG] Poll error: {str(e)}")
-            
-            if attempt % 10 == 0:
-                log_msg(f"Video işleniyor... ({attempt*2}s)")
-        
-        log_msg("Video zaman aşımı.")
-        STATE['tasks'][task_id]['status'] = 'failed'
-        refresh_quota(token)
+        refresh_quota(token, acc['email'])
 
     except Exception as e:
         log_msg(f"Kritik Hata: {str(e)}")
@@ -854,7 +779,7 @@ def process_text_to_video_task_thread(task_id, form_data):
 
             log_msg(f"Video görevi gönderiliyor... ({acc['email']})")
             
-            submit_headers = {
+            headers = {
                 "authorization": "Bearer "+token,
                 "x-device": "TABLET",
                 "x-device-id": "3401879229",
@@ -864,7 +789,6 @@ def process_text_to_video_task_thread(task_id, form_data):
             
             # Build payload based on video model
             if video_model == 'quality_v20_txt':
-                # Quality V2.0 - Sessiz, 480p, 5sn/10sn, 7 aspect ratio
                 video_payload = {
                     "prompt": prompt,
                     "size": size,
@@ -875,7 +799,6 @@ def process_text_to_video_task_thread(task_id, form_data):
                     "modelVersion": "MODEL_THREE_PRO"
                 }
             elif video_model == 'master_v20_txt':
-                # Master V2.0 - Sessiz, 720p, 8sn, 16:9/9:16
                 video_payload = {
                     "prompt": prompt,
                     "resolution": "720p",
@@ -886,7 +809,6 @@ def process_text_to_video_task_thread(task_id, form_data):
                     "modelVersion": "MODEL_FIVE_FAST_3"
                 }
             elif video_model == 'sora2_txt':
-                # Sora 2 - Sessiz, 720p, 10sn, 16:9/9:16
                 video_payload = {
                     "prompt": prompt,
                     "resolution": "720p",
@@ -897,7 +819,6 @@ def process_text_to_video_task_thread(task_id, form_data):
                     "modelVersion": "MODEL_ELEVEN_TEXT_TO_VIDEO_V2"
                 }
             else:
-                # Fallback to Quality V2.0
                 video_payload = {
                     "prompt": prompt,
                     "size": size,
@@ -910,12 +831,11 @@ def process_text_to_video_task_thread(task_id, form_data):
             
             print(f"[TXT-VIDEO DEBUG] Video payload: {video_payload}")
 
-            
             try:
-                resp_video = requests.post(URL_TEXT_TO_VIDEO_SUBMIT, headers=submit_headers, json=video_payload)
+                resp_video = requests.post(URL_TEXT_TO_VIDEO_SUBMIT, headers=headers, json=video_payload)
                 resp_json = resp_video.json()
                 
-                current_q = refresh_quota(token)
+                current_q = refresh_quota(token, acc['email'])
                 error_code = resp_json.get('error', {}).get('code', 0)
 
                 if error_code != 0:
@@ -924,11 +844,11 @@ def process_text_to_video_task_thread(task_id, form_data):
                     safe_quota = current_q if isinstance(current_q, int) else 0
                     should_switch_and_delete = False
 
-                    if safe_quota <= 0:
+                    if safe_quota <= 0 or error_code == 10008:
                         should_switch_and_delete = True
-                        log_msg("Kota 0, hesap siliniyor ve geçiliyor...")
+                        log_msg(f"Kota yetersiz (Kod: {error_code}, Kalan: {safe_quota}), hesap siliniyor ve geçiliyor...")
                     else:
-                        log_msg(f"Kota ({safe_quota}) var ama hata. Onay bekleniyor...")
+                        log_msg(f"Hata oluştu (Kod: {error_code}, Kota: {safe_quota}). Onay bekleniyor...")
                         if task_id in STATE['tasks']:
                             STATE['tasks'][task_id]['status'] = 'waiting_confirmation'
                         
@@ -936,7 +856,6 @@ def process_text_to_video_task_thread(task_id, form_data):
                         user_response = None
                         while time.time() - wait_start < 300:
                             if task_id not in STATE['tasks']: return 
-                            
                             status_now = STATE['tasks'][task_id]['status']
                             if status_now == 'resume_approved':
                                 user_response = 'yes'
@@ -965,7 +884,7 @@ def process_text_to_video_task_thread(task_id, form_data):
                 else:
                     target_task_id = resp_json.get('data', {}).get('data', {}).get('taskId')
                     log_msg(f"ID: {target_task_id}")
-                    refresh_quota(token)
+                    refresh_quota(token, acc['email'])
                     break
             except Exception as e:
                 log_msg(f"Submit hatası: {str(e)}")
@@ -974,6 +893,14 @@ def process_text_to_video_task_thread(task_id, form_data):
         
         log_msg("Video işleniyor...")
         
+        def extract_v_url(obj):
+            v = obj.get('noWaterMarkVideoUrl') or obj.get('noWatermarkVideoUrl')
+            if not v:
+                creation = obj.get('detail', {}).get('creation', {})
+                v = creation.get('noWaterMarkVideoUrl') or creation.get('noWatermarkVideoUrl')
+            if isinstance(v, list) and v: return v[0]
+            return v
+
         # Poll for video completion
         attempt = 0
         while attempt < 9000:
@@ -1009,25 +936,12 @@ def process_text_to_video_task_thread(task_id, form_data):
                     
                     if target_video:
                         video_state = target_video.get('taskState', '')
-                        
-                        # Robust video URL extraction
-                        def extract_v_url(obj):
-                            # Try top level
-                            v = obj.get('noWaterMarkVideoUrl') or obj.get('noWatermarkVideoUrl')
-                            if not v:
-                                # Try nested detail.creation (common in Assets API)
-                                creation = obj.get('detail', {}).get('creation', {})
-                                v = creation.get('noWaterMarkVideoUrl') or creation.get('noWatermarkVideoUrl')
-                            
-                            if isinstance(v, list) and v: return v[0]
-                            return v
-                        
                         video_url = extract_v_url(target_video)
                         
                         if video_state == 'FAIL':
                             log_msg("Video oluşturma başarısız!")
                             STATE['tasks'][task_id]['status'] = 'failed'
-                            refresh_quota(token)
+                            refresh_quota(token, acc['email'])
                             return
                         
                         if video_url:
@@ -1039,8 +953,10 @@ def process_text_to_video_task_thread(task_id, form_data):
                             
                             STATE['tasks'][task_id]['status'] = 'completed'
                             log_msg("Video tamamlandı!")
-                            refresh_quota(token)
+                            refresh_quota(token, acc['email'])
                             return
+                elif json_data.get('error'):
+                    log_msg(f"Sorgu hatası: {json_data['error'].get('message')}")
             except Exception as e:
                 pass
             
@@ -1049,7 +965,7 @@ def process_text_to_video_task_thread(task_id, form_data):
         
         log_msg("Video zaman aşımı.")
         STATE['tasks'][task_id]['status'] = 'failed'
-        refresh_quota(token)
+        refresh_quota(token, acc['email'])
 
     except Exception as e:
         log_msg(f"Kritik Hata: {str(e)}")
