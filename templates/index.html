@@ -93,16 +93,19 @@
         
         <!-- Header -->
         <div class="p-6 border-b border-white/5 bg-[#0a0a0a]">
-            <div class="flex justify-between items-start mb-4 gap-4">
-                <h1 class="text-xl sm:text-2xl font-black bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-transparent bg-clip-text flex items-center gap-3 tracking-tighter shrink-0">
-                    <i class="fa-solid fa-bolt text-indigo-500 text-xl"></i> NANOBANANA <span class="text-[10px] sm:text-xs text-gray-500 font-mono font-normal mt-1 border border-gray-800 px-1 rounded">PRO</span>
+            <div class="flex justify-between items-center mb-4 gap-2 sm:gap-4">
+                <h1 class="text-lg sm:text-2xl font-black bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-transparent bg-clip-text flex items-center gap-2 sm:gap-3 tracking-tighter shrink-1 min-w-0">
+                    <i class="fa-solid fa-bolt text-indigo-500 text-lg sm:text-xl"></i> NANOBANANA <span class="text-[8px] sm:text-xs text-gray-500 font-mono font-normal mt-0.5 border border-gray-800 px-1 rounded">PRO</span>
                 </h1>
-                <div class="flex items-center gap-2 shrink-0">
-                    <button onclick="openGeminiChat()" class="text-xs text-gray-500 hover:text-indigo-400 hover:bg-indigo-500/10 px-3 py-2 rounded-lg transition border border-gray-800 hover:border-indigo-500/30 flex items-center gap-2" title="AI Asistan">
+                <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                    <button onclick="openSettingsModal()" class="text-xs text-gray-500 hover:text-yellow-400 hover:bg-yellow-500/10 p-2 sm:px-3 sm:py-2 rounded-lg transition border border-gray-800 hover:border-yellow-500/30 flex items-center justify-center" title="Ayarlar">
+                        <i class="fa-solid fa-gear"></i>
+                    </button>
+                    <button onclick="openGeminiChat()" class="text-xs text-gray-500 hover:text-indigo-400 hover:bg-indigo-500/10 p-2 sm:px-3 sm:py-2 rounded-lg transition border border-gray-800 hover:border-indigo-500/30 flex items-center justify-center" title="AI Asistan">
                         <i class="fa-solid fa-robot"></i>
                     </button>
-                    <button onclick="logout()" class="text-xs text-gray-500 hover:text-red-400 hover:bg-red-500/10 px-3 py-2 rounded-lg transition border border-gray-800 hover:border-red-500/30 flex items-center gap-2">
-                        <i class="fa-solid fa-right-from-bracket"></i> Çıkış
+                    <button onclick="logout()" class="text-xs text-gray-500 hover:text-red-400 hover:bg-red-500/10 p-2 sm:px-3 sm:py-2 rounded-lg transition border border-gray-800 hover:border-red-500/30 flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-right-from-bracket"></i> <span class="hidden sm:inline">Çıkış</span>
                     </button>
                 </div>
             </div>
@@ -190,7 +193,12 @@
 
                 <!-- Image Upload Area (Conditional) -->
                 <div id="imageUploadArea" class="hidden transition-all duration-300">
-                    <label class="text-[10px] font-bold text-gray-500 uppercase mb-2 block tracking-widest">Kaynak Resimler</label>
+                    <div class="flex justify-between items-center mb-2">
+                        <label class="text-[10px] font-bold text-gray-500 uppercase block tracking-widest">Kaynak Resimler</label>
+                        <button type="button" onclick="clearStagedFiles()" class="text-[10px] text-gray-500 hover:text-red-400 transition flex items-center gap-1">
+                            <i class="fa-solid fa-rotate-right"></i> Temizle
+                        </button>
+                    </div>
                     <div class="relative group h-36">
                         <input type="file" name="files[]" id="sourceFiles" accept="image/*" multiple required disabled 
                             class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
@@ -210,7 +218,10 @@
                 <!-- Prompt -->
                 <div class="relative">
                     <label class="text-[10px] font-bold text-gray-500 uppercase mb-2 block tracking-widest">Prompt</label>
-                    <textarea name="prompt" id="mainPromptField" rows="4" class="w-full bg-[#131315] border border-white/10 rounded-xl p-4 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none resize-none text-gray-200 placeholder-gray-700 transition pr-12" placeholder="Hayalinizdeki sahneyi detaylıca anlatın..."></textarea>
+                    <textarea name="prompt" id="mainPromptField" rows="4" class="w-full bg-[#131315] border border-white/10 rounded-xl p-4 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none resize-none text-gray-200 placeholder-gray-700 transition pr-20" placeholder="Hayalinizdeki sahneyi detaylıca anlatın..."></textarea>
+                    <button type="button" onclick="clearPrompt()" class="absolute bottom-3 right-12 text-gray-500 hover:text-yellow-400 bg-gray-500/10 hover:bg-yellow-500/20 w-8 h-8 flex items-center justify-center rounded-lg transition" title="Promptu temizle">
+                        <i class="fa-solid fa-rotate-right text-sm"></i>
+                    </button>
                     <button type="button" onclick="quickSavePrompt()" class="absolute bottom-3 right-3 text-indigo-500 hover:text-indigo-400 bg-indigo-500/10 hover:bg-indigo-500/20 w-8 h-8 flex items-center justify-center rounded-lg transition" title="Promptu kaydet">
                         <i class="fa-solid fa-plus text-sm"></i>
                     </button>
@@ -348,7 +359,7 @@
                     <div class="space-y-1">
                         <label class="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Model Versiyonu</label>
                         <div class="relative">
-                            <select name="model_version" class="w-full bg-[#131315] border border-white/10 rounded-lg py-2.5 px-3 text-xs focus:border-indigo-500 outline-none text-gray-300 appearance-none">
+                            <select name="model_version" id="imageModelSelect" class="w-full bg-[#131315] border border-white/10 rounded-lg py-2.5 px-3 text-xs focus:border-indigo-500 outline-none text-gray-300 appearance-none" onchange="updateImageModelOptions()">
                                 <option value="MODEL_FOUR_NANO_BANANA_PRO" selected>🍌 Nano Banana PRO</option>
                                 <option value="MODEL_FOUR_NANO_BANANA">🍌 Nano Banana</option>
                             </select>
@@ -356,10 +367,10 @@
                         </div>
                     </div>
 
-                    <div class="space-y-1">
+                    <div id="imageResolutionArea" class="space-y-1">
                         <label class="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Çözünürlük</label>
                         <div class="relative">
-                            <select name="resolution" class="w-full bg-[#131315] border border-white/10 rounded-lg py-2.5 px-3 text-xs focus:border-indigo-500 outline-none text-gray-300 appearance-none">
+                            <select name="resolution" id="imageResolutionSelect" class="w-full bg-[#131315] border border-white/10 rounded-lg py-2.5 px-3 text-xs focus:border-indigo-500 outline-none text-gray-300 appearance-none">
                                 <option value="2K" selected>✨ 2K (Ultra)</option>
                                 <option value="4K">🌟 4K (Extreme)</option>
                                 <option value="1K">💨 1K (Fast)</option>
@@ -577,7 +588,7 @@
 
     <!-- GEMINI CHAT MODAL -->
     <div id="geminiChatModal" class="fixed inset-0 z-[90] bg-black/80 hidden flex items-center justify-center backdrop-blur-md p-2 sm:p-4">
-        <div class="bg-[#0f0f12] border border-indigo-500/20 rounded-2xl w-full max-w-2xl h-[85vh] sm:h-[80vh] max-h-[700px] shadow-2xl shadow-indigo-900/20 flex flex-col relative overflow-hidden">
+        <div class="bg-[#0f0f12] border border-indigo-500/20 rounded-2xl w-full max-w-2xl h-[75vh] sm:h-[70vh] max-h-[600px] shadow-2xl shadow-indigo-900/20 flex flex-col relative overflow-hidden mx-2 sm:mx-4">
             <!-- Header -->
             <div class="bg-gradient-to-r from-indigo-600/20 to-purple-600/20 px-3 sm:px-6 py-3 sm:py-4 border-b border-white/5 flex items-center justify-between shrink-0">
                 <div class="flex items-center gap-2 sm:gap-3">
@@ -653,10 +664,130 @@
         </div>
     </div>
 
+    <!-- SETTINGS MODAL -->
+    <div id="settingsModal" class="fixed inset-0 z-[95] bg-black/80 hidden flex items-center justify-center backdrop-blur-md opacity-0 transition-opacity duration-300">
+        <div class="bg-[#18181b] border border-gray-700 rounded-2xl p-6 max-w-md w-full shadow-2xl transform scale-95 transition-transform duration-300 relative mx-4">
+            <button onclick="closeModal('settingsModal')" class="absolute top-4 right-4 text-gray-500 hover:text-white transition"><i class="fa-solid fa-xmark text-lg"></i></button>
+            <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2"><i class="fa-solid fa-gear text-yellow-500"></i> Ayarlar</h3>
+            
+            <div class="space-y-4">
+                <!-- Use single operation per account -->
+                <div class="bg-[#131315] rounded-xl border border-white/5 p-4">
+                    <label class="flex items-start gap-3 cursor-pointer">
+                        <input type="checkbox" id="settingSingleOpPerAccount" class="w-5 h-5 mt-0.5 rounded border-2 border-gray-600 bg-transparent checked:bg-yellow-600 checked:border-yellow-600 cursor-pointer transition-colors appearance-none shrink-0" onchange="saveSettings()">
+                        <div>
+                            <span class="text-sm font-bold text-gray-200 block">Her Hesabı 1 İşlem İçin Kullan</span>
+                            <p class="text-[10px] text-gray-500 mt-1">Açıksa, her başarılı işlemden sonra otomatik olarak bir sonraki hesaba geçer.</p>
+                        </div>
+                    </label>
+                </div>
+                
+                <!-- Auto skip on insufficient quota -->
+                <div class="bg-[#131315] rounded-xl border border-white/5 p-4">
+                    <label class="flex items-start gap-3 cursor-pointer">
+                        <input type="checkbox" id="settingAutoSkipQuota" class="w-5 h-5 mt-0.5 rounded border-2 border-gray-600 bg-transparent checked:bg-yellow-600 checked:border-yellow-600 cursor-pointer transition-colors appearance-none shrink-0" onchange="saveSettings()">
+                        <div>
+                            <span class="text-sm font-bold text-gray-200 block">Kota Yetersiz İse Otomatik Geç</span>
+                            <p class="text-[10px] text-gray-500 mt-1">Açıksa, kota 0 olmasa bile hata alındığında popup göstermeden diğer hesaba geçer.</p>
+                        </div>
+                    </label>
+                </div>
+            </div>
+            
+            <div class="mt-6 text-center">
+                <button onclick="closeModal('settingsModal')" class="bg-yellow-600 hover:bg-yellow-500 text-white px-8 py-3 rounded-xl font-bold transition">
+                    <i class="fa-solid fa-check mr-2"></i> Tamam
+                </button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // --- UI Logic ---
         let currentMode = 'text'; // Track current mode
         let stagedFiles = [];
+        
+        // --- Settings Management ---
+        let appSettings = {
+            singleOpPerAccount: false,
+            autoSkipQuota: false
+        };
+        
+        function loadSettings() {
+            try {
+                const saved = localStorage.getItem('nanoBananaSettings');
+                if (saved) {
+                    appSettings = JSON.parse(saved);
+                    // Update checkboxes
+                    document.getElementById('settingSingleOpPerAccount').checked = appSettings.singleOpPerAccount;
+                    document.getElementById('settingAutoSkipQuota').checked = appSettings.autoSkipQuota;
+                }
+            } catch (e) {
+                console.error('Settings load error:', e);
+            }
+            // Sync to server
+            syncSettingsToServer();
+        }
+        
+        function saveSettings() {
+            appSettings.singleOpPerAccount = document.getElementById('settingSingleOpPerAccount').checked;
+            appSettings.autoSkipQuota = document.getElementById('settingAutoSkipQuota').checked;
+            localStorage.setItem('nanoBananaSettings', JSON.stringify(appSettings));
+            syncSettingsToServer();
+        }
+        
+        async function syncSettingsToServer() {
+            try {
+                await fetch('/update_settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(appSettings)
+                });
+            } catch (e) {
+                console.error('Settings sync error:', e);
+            }
+        }
+        
+        function openSettingsModal() {
+            const modal = document.getElementById('settingsModal');
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                modal.children[0].classList.remove('scale-95');
+                modal.children[0].classList.add('scale-100');
+            }, 10);
+        }
+        
+        // --- Prompt Clear ---
+        function clearPrompt() {
+            document.getElementById('mainPromptField').value = '';
+            document.getElementById('mainPromptField').focus();
+        }
+        
+        // --- Image Model Options Update ---
+        function updateImageModelOptions() {
+            const modelSelect = document.getElementById('imageModelSelect');
+            const resolutionArea = document.getElementById('imageResolutionArea');
+            
+            if (!modelSelect || !resolutionArea) return;
+            
+            const selectedModel = modelSelect.value;
+            
+            // Nano Banana (not PRO) doesn't support resolution selection
+            if (selectedModel === 'MODEL_FOUR_NANO_BANANA') {
+                resolutionArea.classList.add('hidden');
+            } else {
+                resolutionArea.classList.remove('hidden');
+            }
+        }
+
+        // --- Clear Staged Files ---
+        function clearStagedFiles() {
+            stagedFiles = [];
+            renderFilePreviews();
+            // Reset file input value
+            document.getElementById('sourceFiles').value = '';
+        }
 
         function setMode(mode) {
             currentMode = mode;
@@ -1114,6 +1245,12 @@
                 formData.delete('video_duration');
                 formData.delete('ai_prompt');
                 formData.delete('audio');
+                
+                // If Nano Banana (not PRO), remove resolution parameter
+                const imageModel = formData.get('model_version');
+                if (imageModel === 'MODEL_FOUR_NANO_BANANA') {
+                    formData.delete('resolution');
+                }
             }
 
             btn.disabled = true;
@@ -1397,6 +1534,7 @@
                     document.getElementById('mainApp').classList.remove('hidden');
                     loadFavorites();
                     loadPrompts();
+                    loadSettings();
                 } else {
                     document.getElementById('landingPage').classList.remove('hidden');
                     document.getElementById('mainApp').classList.add('hidden');
@@ -2031,7 +2169,6 @@
         function openGeminiChat() {
             const modal = document.getElementById('geminiChatModal');
             modal.classList.remove('hidden');
-            document.getElementById('geminiMessageInput').focus();
         }
 
         function closeGeminiChat() {
@@ -2046,12 +2183,12 @@
             
             const container = document.getElementById('geminiChatMessages');
             container.innerHTML = `
-                <div class="flex gap-3">
-                    <div class="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center shrink-0">
-                        <i class="fa-solid fa-robot text-white text-xs"></i>
+                <div class="flex gap-2 sm:gap-3">
+                    <div class="w-7 h-7 sm:w-8 sm:h-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center shrink-0">
+                        <i class="fa-solid fa-robot text-white text-[10px] sm:text-xs"></i>
                     </div>
-                    <div class="bg-[#1a1a1f] border border-white/5 rounded-xl rounded-tl-none p-4 max-w-[80%]">
-                        <p class="text-gray-300 text-sm leading-relaxed">Merhaba! 👋 Ben yapay zeka asistanınızım. Size nasıl yardımcı olabilirim? Resim veya video ekleyerek görsel sorular da sorabilirsiniz.</p>
+                    <div class="bg-[#1a1a1f] border border-white/5 rounded-xl rounded-tl-none p-3 sm:p-4 max-w-[85%] sm:max-w-[80%]">
+                        <p class="text-gray-300 text-xs sm:text-sm leading-relaxed">Merhaba! 👋 Ben yapay zeka asistanınızım. Size nasıl yardımcı olabilirim? Resim veya video ekleyerek görsel sorular da sorabilirsiniz.</p>
                     </div>
                 </div>
             `;
