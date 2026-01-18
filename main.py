@@ -28,7 +28,11 @@ STATE = {
     "active_quota": "Bilinmiyor", 
     "tasks": {},          # task_id -> {status, log, image_url, params, created_at, api_task_id}
     "favorites": [],      # [{"image_url": "...", "prompt": "...", "params": {...}}]
-    "prompts": []         # [{"title": "...", "text": "..."}]
+    "prompts": [],        # [{"title": "...", "text": "..."}]
+    "settings": {         # User settings for account rotation
+        "singleOpPerAccount": False,
+        "autoSkipQuota": False
+    }
 }
 
 ACCOUNTS_FILE = 'accounts.txt'
@@ -333,10 +337,16 @@ def process_task_thread(task_id, file_paths, form_data):
                 "prompt": form_data.get('prompt', ''),
                 "imageSize": form_data.get('image_size'),
                 "count": 1,
-                "resolution": form_data.get('resolution'),
                 "modelType": MODEL_TYPE,
                 "modelVersion": form_data.get('model_version')
             }
+            
+            # Only add resolution if model is PRO (not regular Nano Banana)
+            model_version = form_data.get('model_version')
+            if model_version != 'MODEL_FOUR_NANO_BANANA':
+                resolution = form_data.get('resolution')
+                if resolution:
+                    payload["resolution"] = resolution
             
             # Eğer resim varsa ID'leri ekle
             if user_image_ids:
@@ -360,6 +370,10 @@ def process_task_thread(task_id, file_paths, form_data):
                 if safe_quota <= 0 or error_code == 10008:
                     should_switch_and_delete = True
                     log_msg(f"Kota yetersiz (Kod: {error_code}, Kalan: {safe_quota}), hesap siliniyor ve geçiliyor...")
+                elif STATE['settings'].get('autoSkipQuota', False) or STATE['settings'].get('singleOpPerAccount', False):
+                    # Auto-skip or single operation mode - don't wait for confirmation
+                    should_switch_and_delete = True
+                    log_msg(f"Otomatik geçiş aktif (Kod: {error_code}), hesap değiştiriliyor...")
                 else:
                     log_msg(f"Hata oluştu (Kod: {error_code}, Kota: {safe_quota}). Onay bekleniyor...")
                     if task_id in STATE['tasks']:
@@ -401,6 +415,17 @@ def process_task_thread(task_id, file_paths, form_data):
                     log_msg(f"ID: {target_api_task_id}")
                 except:
                     log_msg("ID parse hatası.")
+                    
+                # Check if single operation per account is enabled
+                if STATE['settings'].get('singleOpPerAccount', False):
+                    if rotate_account(delete_current=True):
+                        log_msg("Tek işlem modu: Hesap kullanıldı ve silindi, sonrakine geçiliyor...")
+                        # Login to new account and refresh quota
+                        new_token = login_and_get_token()
+                        new_acc = get_current_account()
+                        if new_acc:
+                            refresh_quota(new_token, new_acc['email'])
+                
                 break
 
         # Polling
@@ -617,6 +642,10 @@ def process_video_task_thread(task_id, file_paths, form_data):
                     if safe_quota <= 0 or error_code == 10008:
                         should_switch_and_delete = True
                         log_msg(f"Kota yetersiz (Kod: {error_code}, Kalan: {safe_quota}), hesap siliniyor ve geçiliyor...")
+                    elif STATE['settings'].get('autoSkipQuota', False) or STATE['settings'].get('singleOpPerAccount', False):
+                        # Auto-skip or single operation mode - don't wait for confirmation
+                        should_switch_and_delete = True
+                        log_msg(f"Otomatik geçiş aktif (Kod: {error_code}), hesap değiştiriliyor...")
                     else:
                         log_msg(f"Hata oluştu (Kod: {error_code}, Kota: {safe_quota}). Onay bekleniyor...")
                         if task_id in STATE['tasks']:
@@ -657,6 +686,17 @@ def process_video_task_thread(task_id, file_paths, form_data):
                     log_msg(f"ID: {target_task_id}")
                     print(f"[VIDEO DEBUG] Target task ID: {target_task_id}")
                     refresh_quota(token, acc['email'])
+                    
+                    # Check if single operation per account is enabled
+                    if STATE['settings'].get('singleOpPerAccount', False):
+                        if rotate_account(delete_current=True):
+                            log_msg("Tek işlem modu: Hesap kullanıldı ve silindi, sonrakine geçiliyor...")
+                            # Login to new account and refresh quota
+                            new_token = login_and_get_token()
+                            new_acc = get_current_account()
+                            if new_acc:
+                                refresh_quota(new_token, new_acc['email'])
+                    
                     break
             except Exception as e:
                 log_msg(f"Submit hatası: {str(e)}")
@@ -847,6 +887,10 @@ def process_text_to_video_task_thread(task_id, form_data):
                     if safe_quota <= 0 or error_code == 10008:
                         should_switch_and_delete = True
                         log_msg(f"Kota yetersiz (Kod: {error_code}, Kalan: {safe_quota}), hesap siliniyor ve geçiliyor...")
+                    elif STATE['settings'].get('autoSkipQuota', False) or STATE['settings'].get('singleOpPerAccount', False):
+                        # Auto-skip or single operation mode - don't wait for confirmation
+                        should_switch_and_delete = True
+                        log_msg(f"Otomatik geçiş aktif (Kod: {error_code}), hesap değiştiriliyor...")
                     else:
                         log_msg(f"Hata oluştu (Kod: {error_code}, Kota: {safe_quota}). Onay bekleniyor...")
                         if task_id in STATE['tasks']:
@@ -885,6 +929,17 @@ def process_text_to_video_task_thread(task_id, form_data):
                     target_task_id = resp_json.get('data', {}).get('data', {}).get('taskId')
                     log_msg(f"ID: {target_task_id}")
                     refresh_quota(token, acc['email'])
+                    
+                    # Check if single operation per account is enabled
+                    if STATE['settings'].get('singleOpPerAccount', False):
+                        if rotate_account(delete_current=True):
+                            log_msg("Tek işlem modu: Hesap kullanıldı ve silindi, sonrakine geçiliyor...")
+                            # Login to new account and refresh quota
+                            new_token = login_and_get_token()
+                            new_acc = get_current_account()
+                            if new_acc:
+                                refresh_quota(new_token, new_acc['email'])
+                    
                     break
             except Exception as e:
                 log_msg(f"Submit hatası: {str(e)}")
@@ -994,6 +1049,14 @@ def logout():
 @app.route('/check_session')
 def check_session():
     return jsonify({'logged_in': session.get('logged_in', False)})
+
+@app.route('/update_settings', methods=['POST'])
+def update_settings():
+    data = request.json
+    if data:
+        STATE['settings']['singleOpPerAccount'] = data.get('singleOpPerAccount', False)
+        STATE['settings']['autoSkipQuota'] = data.get('autoSkipQuota', False)
+    return jsonify({'success': True})
 
 @app.route('/')
 def index():
