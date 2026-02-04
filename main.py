@@ -595,7 +595,7 @@ def process_video_task_thread(task_id, file_paths, form_data):
                     "resolution": "720p",
                     "size": video_size,
                     "aiPromptEnhance": ai_prompt_enhance,
-                    "modelVersion": "MODEL_TWO_Q_3_PRO"
+                    "modelVersion": "MODEL_FIVE_FAST_3"
                 }
             elif video_model == 'sora2_img':
                 # Sora 2 - Sessiz, 720p, 10sn, 16:9/9:16, +AI Prompt
